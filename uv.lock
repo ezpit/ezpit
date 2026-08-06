@@ -124,7 +124,6 @@ wheels = [
 
 [[package]]
 name = "ezpit"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "numpy" },
@@ -164,7 +163,7 @@ requires-dist = [
     { name = "pyside6", marker = "extra == 'gui'", specifier = ">=6.11.1" },
     { name = "scipy", specifier = ">=1.18.0" },
 ]
-provides-extras = ["gui", "examples"]
+provides-extras = ["examples", "gui"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -28,6 +28,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          # Full history + tags so hatch-vcs can derive the version.
+          fetch-depth: 0
 
       # PySide6/Qt needs these shared libraries to import during the
       # PyInstaller analysis step on the headless Linux runner.
@@ -48,11 +51,16 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra gui --group dev
 
-      - name: Build ezpit-gui
+      - name: Determine version
+        shell: bash
+        run: |
+          echo "VERSION=$(uv run python -c 'from importlib.metadata import version; print(version("ezpit"))')" >> "$GITHUB_ENV"
+
+      - name: Build ezpdf-gui
         shell: bash
         run: |
           uv run pyinstaller --noconfirm --clean --onefile --windowed \
-            --name ezpit-gui \
+            --name ezpdf-gui \
             --icon src/ezpit/gui/ui/icons/EZPDF.ico \
             --add-data "src/ezpit/gui/ui/icons${{ matrix.sep }}ui/icons" \
             src/ezpit/gui/main.py
@@ -71,13 +79,13 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts
-          cp "dist/ezpit-gui${{ matrix.ext }}" "artifacts/ezpit-gui-${{ matrix.platform }}${{ matrix.ext }}"
-          cp "dist/wh-smooth${{ matrix.ext }}" "artifacts/wh-smooth-${{ matrix.platform }}${{ matrix.ext }}"
+          cp "dist/ezpdf-gui${{ matrix.ext }}" "artifacts/ezpdf-gui-${VERSION}-${{ matrix.platform }}${{ matrix.ext }}"
+          cp "dist/wh-smooth${{ matrix.ext }}" "artifacts/wh-smooth-${VERSION}-${{ matrix.platform }}${{ matrix.ext }}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ezpit-${{ matrix.platform }}
+          name: ezpit-${{ env.VERSION }}-${{ matrix.platform }}
           path: artifacts/*
 
       - name: Attach executables to release
