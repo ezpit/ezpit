@@ -205,13 +205,11 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
-<<<<<<< HEAD
 
 
 .idea/
 *~
 *.swp
-=======
 # Build artifacts
   *.zip
 # EZPDF build artifacts
@@ -219,4 +217,3 @@ EZPDF_GUI_version/build-env/
 EZPDF_GUI_version/build/
 EZPDF_GUI_version/dist/
 EZPDF_GUI_exe_version/
->>>>>>> 885da839af734930c0b82f36fa23bc025199fad7
