@@ -1,10 +1,11 @@
-import sys
 import os
+import sys
 
 # [중요] pyqtgraph가 PySide6를 사용하도록 강제 설정
 os.environ["QT_API"] = "pyside6"
 
 from PySide6.QtWidgets import QApplication
+
 from ezpit.gui.ui.main_window import PDFApp
 
 

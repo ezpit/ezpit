@@ -8,15 +8,34 @@ import numpy as np
 import pyqtgraph as pg
 
 # PySide6 Imports
-from PySide6.QtCore import Qt, QPoint, QSize, QSizeF, QMarginsF, QSettings
+from PySide6.QtCore import QMarginsF, QPoint, QSettings, QSize, QSizeF, Qt
 from PySide6.QtGui import (
-    QAction, QFont, QImage, QPainter, QColor, QPageSize, QCursor, QPdfWriter
+    QAction,
+    QColor,
+    QCursor,
+    QFont,
+    QImage,
+    QPageSize,
+    QPainter,
+    QPdfWriter,
 )
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QCheckBox, QMenuBar, QWidgetAction,
-    QSizePolicy, QPushButton, QSlider, QLineEdit,
-    QDialog, QFileDialog, QMessageBox, QApplication
+    QApplication,
+    QCheckBox,
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMenuBar,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
+    QVBoxLayout,
+    QWidget,
+    QWidgetAction,
 )
 
 # SVG Generator (Check availability)
@@ -25,7 +44,7 @@ try:
 except ImportError:
     QSvgGenerator = None
 
-from .plotter import make_pen, setup_plot, plot_curve, update_visibility
+from .plotter import make_pen, plot_curve, setup_plot, update_visibility
 from .save_menu import SaveMenu
 
 LABEL_PT = 9
@@ -40,7 +59,7 @@ QWidget {
     font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
 }
 QLabel {
-    font-weight: normal; 
+    font-weight: normal;
     color: #222;
 }
 QLineEdit {
@@ -87,7 +106,7 @@ QSlider::handle:horizontal:hover {
 
 /* Checkbox Style */
 QCheckBox {
-    font-weight: normal; 
+    font-weight: normal;
     color: #000;
 }
 QCheckBox::indicator:checked {
@@ -105,7 +124,7 @@ QWidget {
     font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
 }
 QLabel {
-    font-weight: normal; 
+    font-weight: normal;
     color: #E0E0E0;
 }
 QLineEdit {
@@ -152,7 +171,7 @@ QSlider::handle:horizontal:hover {
 
 /* Checkbox Style */
 QCheckBox {
-    font-weight: normal; 
+    font-weight: normal;
     color: #E0E0E0;
 }
 QCheckBox::indicator {
@@ -184,13 +203,14 @@ QMenu::item:selected {
 class PlotWindow(QMainWindow):
     """
     Visualize I(q), S(q), F(q), G(r) with PyQtGraph (PySide6 backend).
+
     Supports single file analysis and multiple file 'waterfall' plots.
     """
 
     def __init__(self):
         super().__init__()
         self.left_button_pan_enabled = True
-        pg.setConfigOption('leftButtonPan', True)
+        pg.setConfigOption("leftButtonPan", True)
 
         # Default to Light Mode
         self.setStyleSheet(TEAL_STYLE)
@@ -216,9 +236,7 @@ class PlotWindow(QMainWindow):
         self.top_row.setContentsMargins(6, 6, 6, 2)
         self.top_row.setSpacing(8)
 
-        self.top_hint = QLabel(
-            "Z: Toggle left-click Pan <-> Box-Zoom (left mouse),  R: Auto-range (reset zoom)"
-        )
+        self.top_hint = QLabel("Z: Toggle left-click Pan <-> Box-Zoom (left mouse),  R: Auto-range (reset zoom)")
         self.top_hint.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.top_hint.setWordWrap(False)
         self.top_hint.setStyleSheet(f"color:#444; font-size:{FONT_PX}px; font-weight:normal; margin-right:8px;")
@@ -257,7 +275,7 @@ class PlotWindow(QMainWindow):
         """
 
         self.plot_checkboxes = []
-        for name in ['I(q)', 'S(q)', 'F(q)', 'G(r)']:
+        for name in ["I(q)", "S(q)", "F(q)", "G(r)"]:
             cb = QCheckBox(name)
             cb.setChecked(True)
             cb.setStyleSheet(self.CB_STYLE_LIGHT + "QCheckBox { margin-left:6px; }")
@@ -287,7 +305,7 @@ class PlotWindow(QMainWindow):
         self.plots = []
         for _ in range(4):
             pw = pg.PlotWidget()
-            pw.setBackground('w')
+            pw.setBackground("w")
             pw.showGrid(x=False, y=False, alpha=0.3)
 
             vb = pw.getViewBox()
@@ -331,13 +349,11 @@ class PlotWindow(QMainWindow):
 
         # Check Global Theme
         app_instance = QApplication.instance()
-        if hasattr(app_instance, 'is_dark_mode') and app_instance.is_dark_mode:
+        if hasattr(app_instance, "is_dark_mode") and app_instance.is_dark_mode:
             self.apply_theme(True)
 
     def apply_theme(self, is_dark):
-        """
-        Updates the style of the PlotWindow for Light/Dark mode.
-        """
+        """Updates the style of the PlotWindow for Light/Dark mode."""
         FONT_PX = 11
 
         if is_dark:
@@ -350,31 +366,38 @@ class PlotWindow(QMainWindow):
                 cb.setStyleSheet(self.CB_STYLE_DARK + "QCheckBox { margin-left:6px; }")
 
             for pw in self.plots:
-                pw.setBackground('#1e1e1e')  # Dark background
+                pw.setBackground("#1e1e1e")  # Dark background
                 plot_item = pw.getPlotItem()
-                for axis in ['left', 'bottom']:
+                for axis in ["left", "bottom"]:
                     ax = plot_item.getAxis(axis)
-                    ax.setPen('#E0E0E0')
-                    ax.setTextPen('#E0E0E0')
+                    ax.setPen("#E0E0E0")
+                    ax.setTextPen("#E0E0E0")
 
             if self.slider_bar_widget:
                 self.slider_bar_widget.setStyleSheet("margin:0; padding:0; background-color: #2b2b2b;")
 
             # [추가] 다크 모드 시 곡선 및 토글 색상 개선 (흰색으로 통일)
             pen_white = make_pen((255, 255, 255))
-            if self.raw_curve: self.raw_curve.setPen(pen_white)
-            if self.sq_curve_original: self.sq_curve_original.setPen(pen_white)
-            if self.fq_smoothed_curve: self.fq_smoothed_curve.setPen(pen_white)
-            if self.gr_smoothed_curve: self.gr_smoothed_curve.setPen(pen_white)
+            if self.raw_curve:
+                self.raw_curve.setPen(pen_white)
+            if self.sq_curve_original:
+                self.sq_curve_original.setPen(pen_white)
+            if self.fq_smoothed_curve:
+                self.fq_smoothed_curve.setPen(pen_white)
+            if self.gr_smoothed_curve:
+                self.gr_smoothed_curve.setPen(pen_white)
 
-            base_style = "QCheckBox::indicator { width: 12px; height: 12px; border-radius: 6px; border: 1px solid #777; background: #fff; } "
+            base_style = (
+                "QCheckBox::indicator { width: 12px; height: 12px; "
+                "border-radius: 6px; border: 1px solid #777; background: #fff; } "
+            )
             white_checked = "QCheckBox::indicator:checked { background: #FFFFFF; border:1px solid #FFFFFF; }"
 
-            if hasattr(self, 'original_checkbox'):
+            if hasattr(self, "original_checkbox"):
                 self.original_checkbox.setStyleSheet(base_style + white_checked)
-            if hasattr(self, 'original_sq_checkbox'):
+            if hasattr(self, "original_sq_checkbox"):
                 self.original_sq_checkbox.setStyleSheet(base_style + white_checked)
-            if hasattr(self, 'smoothed_fq_checkbox'):
+            if hasattr(self, "smoothed_fq_checkbox"):
                 self.smoothed_fq_checkbox.setStyleSheet(base_style + white_checked)
 
         else:
@@ -387,31 +410,38 @@ class PlotWindow(QMainWindow):
                 cb.setStyleSheet(self.CB_STYLE_LIGHT + "QCheckBox { margin-left:6px; }")
 
             for pw in self.plots:
-                pw.setBackground('w')
+                pw.setBackground("w")
                 plot_item = pw.getPlotItem()
-                for axis in ['left', 'bottom']:
+                for axis in ["left", "bottom"]:
                     ax = plot_item.getAxis(axis)
-                    ax.setPen('k')
-                    ax.setTextPen('k')
+                    ax.setPen("k")
+                    ax.setTextPen("k")
 
             if self.slider_bar_widget:
                 self.slider_bar_widget.setStyleSheet("margin:0; padding:0; background-color: #F0F0F0;")
 
             # [추가] 라이트 모드 시 곡선 및 토글 색상 복구 (검은색으로 통일)
             pen_black = make_pen((0, 0, 0))
-            if self.raw_curve: self.raw_curve.setPen(pen_black)
-            if self.sq_curve_original: self.sq_curve_original.setPen(pen_black)
-            if self.fq_smoothed_curve: self.fq_smoothed_curve.setPen(pen_black)
-            if self.gr_smoothed_curve: self.gr_smoothed_curve.setPen(pen_black)
+            if self.raw_curve:
+                self.raw_curve.setPen(pen_black)
+            if self.sq_curve_original:
+                self.sq_curve_original.setPen(pen_black)
+            if self.fq_smoothed_curve:
+                self.fq_smoothed_curve.setPen(pen_black)
+            if self.gr_smoothed_curve:
+                self.gr_smoothed_curve.setPen(pen_black)
 
-            base_style = "QCheckBox::indicator { width: 12px; height: 12px; border-radius: 6px; border: 1px solid #777; background: #fff; } "
+            base_style = (
+                "QCheckBox::indicator { width: 12px; height: 12px; "
+                "border-radius: 6px; border: 1px solid #777; background: #fff; } "
+            )
             black_checked = "QCheckBox::indicator:checked { background: #000000; border:1px solid #000000; }"
 
-            if hasattr(self, 'original_checkbox'):
+            if hasattr(self, "original_checkbox"):
                 self.original_checkbox.setStyleSheet(base_style + black_checked)
-            if hasattr(self, 'original_sq_checkbox'):
+            if hasattr(self, "original_sq_checkbox"):
                 self.original_sq_checkbox.setStyleSheet(base_style + black_checked)
-            if hasattr(self, 'smoothed_fq_checkbox'):
+            if hasattr(self, "smoothed_fq_checkbox"):
                 self.smoothed_fq_checkbox.setStyleSheet(base_style + black_checked)
 
     def init_bottom_menu(self):
@@ -447,7 +477,11 @@ class PlotWindow(QMainWindow):
         self.original_checkbox.setChecked(False)
         self.original_checkbox.stateChanged.connect(self.show_original_data)
 
-        for checkbox in [self.log_checkbox, self.background_checkbox, self.original_checkbox]:
+        for checkbox in [
+            self.log_checkbox,
+            self.background_checkbox,
+            self.original_checkbox,
+        ]:
             iq_layout.addWidget(checkbox)
 
         iq_widget_action = QWidgetAction(self)
@@ -509,22 +543,31 @@ class PlotWindow(QMainWindow):
             }
         """
         self.background_checkbox.setStyleSheet(
-            base_indicator_style + "QCheckBox::indicator:checked { background: #FF0000; border:1px solid #FF0000; }")
+            base_indicator_style + "QCheckBox::indicator:checked { background: #FF0000; border:1px solid #FF0000; }"
+        )
         self.original_checkbox.setStyleSheet(
-            base_indicator_style + "QCheckBox::indicator:checked { background: #000000; border:1px solid #000000; }")
+            base_indicator_style + "QCheckBox::indicator:checked { background: #000000; border:1px solid #000000; }"
+        )
         self.original_sq_checkbox.setStyleSheet(
-            base_indicator_style + "QCheckBox::indicator:checked { background: #000000; border:1px solid #000000; }")
+            base_indicator_style + "QCheckBox::indicator:checked { background: #000000; border:1px solid #000000; }"
+        )
         self.polynomial_sq_checkbox.setStyleSheet(
-            base_indicator_style + "QCheckBox::indicator:checked { background: #FF0000; border:1px solid #FF0000; }")
+            base_indicator_style + "QCheckBox::indicator:checked { background: #FF0000; border:1px solid #FF0000; }"
+        )
         self.mean_sq_fi_checkbox.setStyleSheet(
-            base_indicator_style + "QCheckBox::indicator:checked { background: #009600; border:1px solid #009600; }")
+            base_indicator_style + "QCheckBox::indicator:checked { background: #009600; border:1px solid #009600; }"
+        )
         self.sq_mean_fi_checkbox.setStyleSheet(
-            base_indicator_style + "QCheckBox::indicator:checked { background: #800080; border:1px solid #800080; }")
+            base_indicator_style + "QCheckBox::indicator:checked { background: #800080; border:1px solid #800080; }"
+        )
 
-        default_checked_style = base_indicator_style + "QCheckBox::indicator:checked { background: #FFA500; border:1px solid #FFA500; }"
+        default_checked_style = (
+            base_indicator_style + "QCheckBox::indicator:checked { background: #FFA500; border:1px solid #FFA500; }"
+        )
         self.log_checkbox.setStyleSheet(default_checked_style)
         self.smoothed_fq_checkbox.setStyleSheet(
-            base_indicator_style + "QCheckBox::indicator:checked { background: #000000; border:1px solid #000000; }")
+            base_indicator_style + "QCheckBox::indicator:checked { background: #000000; border:1px solid #000000; }"
+        )
 
         self.bottom_container_widget = QWidget()
         bottom_container_layout = QHBoxLayout(self.bottom_container_widget)
@@ -543,7 +586,7 @@ class PlotWindow(QMainWindow):
         self.lock_graph_checkbox.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
         bottom_container_layout.addWidget(self.lock_graph_checkbox)
 
-        if hasattr(self, 'plot_checkboxes'):
+        if hasattr(self, "plot_checkboxes"):
             for cb in self.plot_checkboxes:
                 bottom_container_layout.addWidget(cb)
 
@@ -589,9 +632,23 @@ class PlotWindow(QMainWindow):
         except Exception:
             return y
 
-    def plot_data(self, xs, ys, bkg_x, bkg_y, raw_x, raw_y,
-                  list_Sq=None, Fq_smoothed=None, mean_sq_fi=None, sq_mean_fi=None,
-                  r_smoothed=None, G_smoothed=None, title="", bring_front=True):
+    def plot_data(
+        self,
+        xs,
+        ys,
+        bkg_x,
+        bkg_y,
+        raw_x,
+        raw_y,
+        list_Sq=None,
+        Fq_smoothed=None,
+        mean_sq_fi=None,
+        sq_mean_fi=None,
+        r_smoothed=None,
+        G_smoothed=None,
+        title="",
+        bring_front=True,
+    ):
         self._reset_intermediates()
         self.is_compton = False
 
@@ -606,9 +663,12 @@ class PlotWindow(QMainWindow):
                 xs[i], ys[i] = self._align_pair(xs[i], ys[i])
         if xs is not None and len(xs) > 1:
             x_sq = xs[1]
-            if list_Sq is not None:  list_Sq = self._align_with_x(x_sq, list_Sq)
-            if mean_sq_fi is not None:  mean_sq_fi = self._align_with_x(x_sq, mean_sq_fi)
-            if sq_mean_fi is not None:  sq_mean_fi = self._align_with_x(x_sq, sq_mean_fi)
+            if list_Sq is not None:
+                list_Sq = self._align_with_x(x_sq, list_Sq)
+            if mean_sq_fi is not None:
+                mean_sq_fi = self._align_with_x(x_sq, mean_sq_fi)
+            if sq_mean_fi is not None:
+                sq_mean_fi = self._align_with_x(x_sq, sq_mean_fi)
         if xs is not None and len(xs) > 2 and Fq_smoothed is not None:
             Fq_smoothed = self._align_with_x(xs[2], Fq_smoothed)
         r_smoothed, G_smoothed = self._align_pair(r_smoothed, G_smoothed)
@@ -638,8 +698,8 @@ class PlotWindow(QMainWindow):
         self.sq_mean_fi = sq_mean_fi
         self.gr_smoothed_data = [r_smoothed, G_smoothed]
 
-        x_labels = ['q(1/Å)', 'q(1/Å)', 'q(1/Å)', 'r(Å)']
-        y_labels = ['I(q)', 'S(q)', 'F(q)', 'G(Å⁻²)']
+        x_labels = ["q(1/Å)", "q(1/Å)", "q(1/Å)", "r(Å)"]
+        y_labels = ["I(q)", "S(q)", "F(q)", "G(Å⁻²)"]
 
         pen_main = make_pen((0, 0, 255))
         pen_bkg = make_pen((255, 0, 0))
@@ -649,48 +709,88 @@ class PlotWindow(QMainWindow):
 
         is_dark = False
         app_instance = QApplication.instance()
-        if hasattr(app_instance, 'is_dark_mode') and app_instance.is_dark_mode:
+        if hasattr(app_instance, "is_dark_mode") and app_instance.is_dark_mode:
             is_dark = True
             pen_raw = make_pen((255, 255, 255))  # White for raw data in dark mode
 
         for i in range(4):
             setup_plot(self.plots[i], x_labels[i], y_labels[i])
-            if hasattr(self, '_xy_labels') and len(self._xy_labels) > i and self._xy_labels[i] is not None:
+            if hasattr(self, "_xy_labels") and len(self._xy_labels) > i and self._xy_labels[i] is not None:
                 self.plots[i].addItem(self._xy_labels[i])
                 self._reposition_xy_label(i)
 
             pi = self.plots[i].getPlotItem()
-            pi.setLabel('bottom', f'<span style="font-size:{LABEL_PT}pt;">{x_labels[i]}</span>')
-            pi.setLabel('left', f'<span style="font-size:{LABEL_PT}pt;">{y_labels[i]}</span>')
+            pi.setLabel("bottom", f'<span style="font-size:{LABEL_PT}pt;">{x_labels[i]}</span>')
+            pi.setLabel("left", f'<span style="font-size:{LABEL_PT}pt;">{y_labels[i]}</span>')
 
             if is_dark:
-                for axis in ['left', 'bottom']:
-                    pi.getAxis(axis).setPen('#E0E0E0')
-                    pi.getAxis(axis).setTextPen('#E0E0E0')
+                for axis in ["left", "bottom"]:
+                    pi.getAxis(axis).setPen("#E0E0E0")
+                    pi.getAxis(axis).setTextPen("#E0E0E0")
 
             self.plots[i].plot(xs[i], ys[i], pen=pen_main)
 
             if i == 0:
                 self.plots[i].setLogMode(y=self.log_checkbox.isChecked())
-                self.bkg_curve = plot_curve(self.plots[i], bkg_x, bkg_y, pen_bkg,
-                                            visible=self.background_checkbox.isChecked())
-                self.raw_curve = plot_curve(self.plots[i], raw_x, raw_y, pen_raw,
-                                            visible=self.original_checkbox.isChecked())
+                self.bkg_curve = plot_curve(
+                    self.plots[i],
+                    bkg_x,
+                    bkg_y,
+                    pen_bkg,
+                    visible=self.background_checkbox.isChecked(),
+                )
+                self.raw_curve = plot_curve(
+                    self.plots[i],
+                    raw_x,
+                    raw_y,
+                    pen_raw,
+                    visible=self.original_checkbox.isChecked(),
+                )
             if i == 1:
-                self.sq_curve_original = plot_curve(self.plots[i], xs[1], list_Sq, pen_raw,
-                                                    visible=self.original_sq_checkbox.isChecked())
-                self.sq_curve_polynomial = plot_curve(self.plots[i], xs[1], self.sq_polynomial_data, pen_bkg,
-                                                      visible=self.polynomial_sq_checkbox.isChecked())
-                self.mean_sq_fi_curve = plot_curve(self.plots[i], xs[1], self.mean_sq_fi, pen_f2,
-                                                   visible=self.mean_sq_fi_checkbox.isChecked())
-                self.sq_mean_fi_curve = plot_curve(self.plots[i], xs[1], self.sq_mean_fi, pen_f_avg2,
-                                                   visible=self.sq_mean_fi_checkbox.isChecked())
+                self.sq_curve_original = plot_curve(
+                    self.plots[i],
+                    xs[1],
+                    list_Sq,
+                    pen_raw,
+                    visible=self.original_sq_checkbox.isChecked(),
+                )
+                self.sq_curve_polynomial = plot_curve(
+                    self.plots[i],
+                    xs[1],
+                    self.sq_polynomial_data,
+                    pen_bkg,
+                    visible=self.polynomial_sq_checkbox.isChecked(),
+                )
+                self.mean_sq_fi_curve = plot_curve(
+                    self.plots[i],
+                    xs[1],
+                    self.mean_sq_fi,
+                    pen_f2,
+                    visible=self.mean_sq_fi_checkbox.isChecked(),
+                )
+                self.sq_mean_fi_curve = plot_curve(
+                    self.plots[i],
+                    xs[1],
+                    self.sq_mean_fi,
+                    pen_f_avg2,
+                    visible=self.sq_mean_fi_checkbox.isChecked(),
+                )
             if i == 2:
-                self.fq_smoothed_curve = plot_curve(self.plots[i], xs[2], Fq_smoothed, pen_raw,
-                                                    visible=self.smoothed_fq_checkbox.isChecked())
+                self.fq_smoothed_curve = plot_curve(
+                    self.plots[i],
+                    xs[2],
+                    Fq_smoothed,
+                    pen_raw,
+                    visible=self.smoothed_fq_checkbox.isChecked(),
+                )
             if i == 3:
-                self.gr_smoothed_curve = plot_curve(self.plots[i], r_smoothed, G_smoothed, pen_raw,
-                                                    visible=self.smoothed_fq_checkbox.isChecked())
+                self.gr_smoothed_curve = plot_curve(
+                    self.plots[i],
+                    r_smoothed,
+                    G_smoothed,
+                    pen_raw,
+                    visible=self.smoothed_fq_checkbox.isChecked(),
+                )
 
         self.update_visibility()
         for i in range(4):
@@ -716,19 +816,29 @@ class PlotWindow(QMainWindow):
         offset_x = self.get_x_offset()
         offset_y = self.get_y_offset()
 
-        x_labels = ['q(1/Å)', 'q(1/Å)', 'q(1/Å)', 'r(Å)']
-        y_labels = ['I(q)', 'S(q)', 'F(1/Å)', 'G(Å⁻²)']
-        colors = [(0, 0, 255), (255, 0, 0), (0, 150, 0), (255, 165, 0),
-                  (128, 0, 128), (0, 255, 255), (255, 105, 180), (128, 128, 0)]
+        x_labels = ["q(1/Å)", "q(1/Å)", "q(1/Å)", "r(Å)"]
+        y_labels = ["I(q)", "S(q)", "F(1/Å)", "G(Å⁻²)"]
+        colors = [
+            (0, 0, 255),
+            (255, 0, 0),
+            (0, 150, 0),
+            (255, 165, 0),
+            (128, 0, 128),
+            (0, 255, 255),
+            (255, 105, 180),
+            (128, 128, 0),
+        ]
 
         is_dark = False
         app_instance = QApplication.instance()
-        if hasattr(app_instance, 'is_dark_mode') and app_instance.is_dark_mode:
+        if hasattr(app_instance, "is_dark_mode") and app_instance.is_dark_mode:
             is_dark = True
 
         def shorten_name(name, max_len=80):
-            if not name: return ""
-            if len(name) <= max_len: return name
+            if not name:
+                return ""
+            if len(name) <= max_len:
+                return name
             return f"{name[:30]}...{name[-20:]}"
 
         for i in range(num_plots):
@@ -765,22 +875,22 @@ class PlotWindow(QMainWindow):
                 pass
 
             # 4. Ensure XY Readout is present
-            if hasattr(self, '_xy_labels') and len(self._xy_labels) > i and self._xy_labels[i] is not None:
+            if hasattr(self, "_xy_labels") and len(self._xy_labels) > i and self._xy_labels[i] is not None:
                 if self._xy_labels[i] not in self.plots[i].items():
                     self.plots[i].addItem(self._xy_labels[i])
                 self._reposition_xy_label(i)
 
             pi = self.plots[i].getPlotItem()
-            pi.setLabel('bottom', f'<span style="font-size:{LABEL_PT}pt;">{x_labels[i]}</span>')
-            pi.setLabel('left', f'<span style="font-size:{LABEL_PT}pt;">{y_labels[i]}</span>')
+            pi.setLabel("bottom", f'<span style="font-size:{LABEL_PT}pt;">{x_labels[i]}</span>')
+            pi.setLabel("left", f'<span style="font-size:{LABEL_PT}pt;">{y_labels[i]}</span>')
 
             if is_dark:
-                for axis in ['left', 'bottom']:
-                    pi.getAxis(axis).setPen('#E0E0E0')
-                    pi.getAxis(axis).setTextPen('#E0E0E0')
+                for axis in ["left", "bottom"]:
+                    pi.getAxis(axis).setPen("#E0E0E0")
+                    pi.getAxis(axis).setTextPen("#E0E0E0")
 
         valid = 0
-        for file_idx, (xs, ys) in enumerate(zip(list_of_xs, list_of_ys)):
+        for file_idx, (xs, ys) in enumerate(zip(list_of_xs, list_of_ys, strict=False)):
             try:
                 # ---------------- [버그 수정 구간 유지] ----------------
                 if not xs or not ys or len(xs) != len(ys):
@@ -891,22 +1001,34 @@ class PlotWindow(QMainWindow):
                     pass
 
             self.x_offset_slider.valueChanged.connect(
-                lambda _: (_s2txt(self.x_offset_slider, self.x_offset_input),
-                           self.update_offsets_and_replot()))
+                lambda _: (
+                    _s2txt(self.x_offset_slider, self.x_offset_input),
+                    self.update_offsets_and_replot(),
+                )
+            )
             self.y_offset_slider.valueChanged.connect(
-                lambda _: (_s2txt(self.y_offset_slider, self.y_offset_input),
-                           self.update_offsets_and_replot()))
+                lambda _: (
+                    _s2txt(self.y_offset_slider, self.y_offset_input),
+                    self.update_offsets_and_replot(),
+                )
+            )
             self.x_offset_input.editingFinished.connect(
-                lambda: (_txt2s(self.x_offset_input, self.x_offset_slider),
-                         self.update_offsets_and_replot()))
+                lambda: (
+                    _txt2s(self.x_offset_input, self.x_offset_slider),
+                    self.update_offsets_and_replot(),
+                )
+            )
             self.y_offset_input.editingFinished.connect(
-                lambda: (_txt2s(self.y_offset_input, self.y_offset_slider),
-                         self.update_offsets_and_replot()))
+                lambda: (
+                    _txt2s(self.y_offset_input, self.y_offset_slider),
+                    self.update_offsets_and_replot(),
+                )
+            )
             self.slider_layout = row
             self.layout.insertWidget(2, self.slider_bar_widget)
             self._resize_offset_controls()
             app_instance = QApplication.instance()
-            if hasattr(app_instance, 'is_dark_mode') and app_instance.is_dark_mode:
+            if hasattr(app_instance, "is_dark_mode") and app_instance.is_dark_mode:
                 self.slider_bar_widget.setStyleSheet("margin:0; padding:0; background-color: #2b2b2b;")
 
     def _resize_offset_controls(self):
@@ -918,15 +1040,19 @@ class PlotWindow(QMainWindow):
 
     def clear_slider_layout(self):
         if self.slider_layout:
-            for sig in (getattr(self, "x_offset_slider", None),
-                        getattr(self, "y_offset_slider", None)):
+            for sig in (
+                getattr(self, "x_offset_slider", None),
+                getattr(self, "y_offset_slider", None),
+            ):
                 if sig:
                     try:
                         sig.valueChanged.disconnect()
                     except Exception:
                         pass
-            for edit in (getattr(self, "x_offset_input", None),
-                         getattr(self, "y_offset_input", None)):
+            for edit in (
+                getattr(self, "x_offset_input", None),
+                getattr(self, "y_offset_input", None),
+            ):
                 if edit:
                     try:
                         edit.editingFinished.disconnect()
@@ -1061,19 +1187,26 @@ class PlotWindow(QMainWindow):
         QCheckBox::indicator:checked { background:#444; }
         """
         is_compton = getattr(self, "is_compton", False)
-        is_multi_plot = hasattr(self, 'cached_xs') and self.cached_xs is not None
+        is_multi_plot = hasattr(self, "cached_xs") and self.cached_xs is not None
         is_single_exp = False
         if not is_multi_plot:
-            is_single_exp = (self.raw_iq is not None and self.raw_iq[0] is not None) or \
-                            (self.background_data is not None and self.background_data[0] is not None) or \
-                            (self.mean_sq_fi is not None)
+            is_single_exp = (
+                (self.raw_iq is not None and self.raw_iq[0] is not None)
+                or (self.background_data is not None and self.background_data[0] is not None)
+                or (self.mean_sq_fi is not None)
+            )
         is_experimental = (is_multi_plot or is_single_exp) and not is_compton
         # A Compton curve is neither experimental data nor calculated (.xyz)
         # output; it has its own save option below.
         is_calculated = not is_experimental and not is_compton
         v.addWidget(QLabel("--- Experimental Data ---", dlg))
         checks_core = []
-        core_labels = [("I(q)", 0, ".iq"), ("S(q)", 1, ".sq"), ("F(q)", 2, ".fq"), ("G(r)", 3, ".gr")]
+        core_labels = [
+            ("I(q)", 0, ".iq"),
+            ("S(q)", 1, ".sq"),
+            ("F(q)", 2, ".fq"),
+            ("G(r)", 3, ".gr"),
+        ]
         for text_label, idx, _ext in core_labels:
             cb = QCheckBox(text_label, dlg)
             cb.setStyleSheet(CB_ROUND_STYLE)
@@ -1082,12 +1215,14 @@ class PlotWindow(QMainWindow):
             try:
                 if is_multi_plot and self.cached_xs:
                     xs_src = self.cached_xs[0]
-                    has_data = xs_src is not None and len(xs_src) > idx and xs_src[idx] is not None and len(
-                        xs_src[idx]) > 0
+                    has_data = (
+                        xs_src is not None and len(xs_src) > idx and xs_src[idx] is not None and len(xs_src[idx]) > 0
+                    )
                 else:
                     xs_src = self.xs
-                    has_data = xs_src is not None and len(xs_src) > idx and xs_src[idx] is not None and len(
-                        xs_src[idx]) > 0
+                    has_data = (
+                        xs_src is not None and len(xs_src) > idx and xs_src[idx] is not None and len(xs_src[idx]) > 0
+                    )
             except Exception:
                 pass
             if not (has_data and is_experimental):
@@ -1096,12 +1231,23 @@ class PlotWindow(QMainWindow):
             checks_core.append(cb)
         extras_def = [
             ("Original S(q)", 1, lambda: self.sq_original_data, "_Sq_original", ".sq"),
-            ("Polynomial for S(q)", 1, lambda: self.sq_polynomial_data, "_Sq_polynomial", ".sq"),
+            (
+                "Polynomial for S(q)",
+                1,
+                lambda: self.sq_polynomial_data,
+                "_Sq_polynomial",
+                ".sq",
+            ),
             ("<f^2>", 1, lambda: self.mean_sq_fi, "_f2", ".dat"),
             ("<f>^2", 1, lambda: self.sq_mean_fi, "_favg2", ".dat"),
             ("Smoothed F(q)", 2, lambda: self.fq_smoothed_data, "_Fq_smoothed", ".fq"),
-            ("Smoothed G(r)", 3, lambda: self.gr_smoothed_data[1] if self.gr_smoothed_data else None, "_Gr_smoothed",
-             ".gr"),
+            (
+                "Smoothed G(r)",
+                3,
+                lambda: self.gr_smoothed_data[1] if self.gr_smoothed_data else None,
+                "_Gr_smoothed",
+                ".gr",
+            ),
         ]
         checks_extras = []
         if not is_multi_plot:
@@ -1129,8 +1275,9 @@ class PlotWindow(QMainWindow):
         cb_compton.setChecked(False)
         compton_has_data = False
         try:
-            compton_has_data = (self.xs is not None and len(self.xs) > 0
-                                and self.xs[0] is not None and len(self.xs[0]) > 0)
+            compton_has_data = (
+                self.xs is not None and len(self.xs) > 0 and self.xs[0] is not None and len(self.xs[0]) > 0
+            )
         except Exception:
             compton_has_data = False
         if not (is_compton and compton_has_data):
@@ -1139,8 +1286,12 @@ class PlotWindow(QMainWindow):
 
         v.addWidget(QLabel("--- Calculated (.xyz) ---", dlg))
         checks_cal = []
-        cal_labels = [("calI(q)", 0, ".caliq"), ("calS(q)", 1, ".calsq"), ("calF(q)", 2, ".calfq"),
-                      ("calG(r)", 3, ".calgr")]
+        cal_labels = [
+            ("calI(q)", 0, ".caliq"),
+            ("calS(q)", 1, ".calsq"),
+            ("calF(q)", 2, ".calfq"),
+            ("calG(r)", 3, ".calgr"),
+        ]
         for text_label, idx, _ext in cal_labels:
             cb = QCheckBox(text_label, dlg)
             cb.setStyleSheet(CB_ROUND_STYLE)
@@ -1158,7 +1309,7 @@ class PlotWindow(QMainWindow):
         btns = QHBoxLayout()
         ok = QPushButton("Save", dlg)
         cancel = QPushButton("Cancel", dlg)
-        btns.addWidget(ok);
+        btns.addWidget(ok)
         btns.addWidget(cancel)
         v.addLayout(btns)
 
@@ -1168,7 +1319,11 @@ class PlotWindow(QMainWindow):
             selected_cal = [i for i, cb in enumerate(checks_cal) if cb.isChecked()]
             selected_compton = cb_compton.isChecked()
             if not selected_core and not selected_extras and not selected_cal and not selected_compton:
-                QMessageBox.information(self, "Nothing selected", "Please select at least one dataset to save.")
+                QMessageBox.information(
+                    self,
+                    "Nothing selected",
+                    "Please select at least one dataset to save.",
+                )
                 return
 
             # Remember the last folder used for saving, shared with the other
@@ -1184,12 +1339,13 @@ class PlotWindow(QMainWindow):
             if selected_compton:
                 default_name = self.file_name or "compton"
                 if default_name.lower().endswith(".compton"):
-                    default_name = default_name[:-len(".compton")]
-                start_path = os.path.join(last_dir, default_name + ".compton") if last_dir \
-                    else default_name + ".compton"
+                    default_name = default_name[: -len(".compton")]
+                start_path = (
+                    os.path.join(last_dir, default_name + ".compton") if last_dir else default_name + ".compton"
+                )
                 path, _ = QFileDialog.getSaveFileName(
-                    self, "Save Compton File", start_path,
-                    "Compton Files (*.compton)")
+                    self, "Save Compton File", start_path, "Compton Files (*.compton)"
+                )
                 if not path:
                     return
                 if not path.lower().endswith(".compton"):
@@ -1205,7 +1361,8 @@ class PlotWindow(QMainWindow):
                 return
 
             folder = QFileDialog.getExistingDirectory(self, "Select folder to save", last_dir)
-            if not folder: return
+            if not folder:
+                return
             settings.setValue("last_dir", folder)
             settings.sync()
             written = self._save_selected_data(folder, selected_core, selected_extras, selected_cal)
@@ -1236,7 +1393,8 @@ class PlotWindow(QMainWindow):
     def _save_selected_data(self, folder, selected_core, selected_extras, selected_cal=None):
         def _write_xy(path, x, y):
             try:
-                if x is None or y is None or len(x) == 0 or len(y) == 0: return 0
+                if x is None or y is None or len(x) == 0 or len(y) == 0:
+                    return 0
                 n = min(len(x), len(y))
                 arr = np.column_stack([x[:n], y[:n]])
                 np.savetxt(path, arr, fmt="%.10g", header="x y", comments="")
@@ -1248,8 +1406,18 @@ class PlotWindow(QMainWindow):
         is_multi = hasattr(self, "cached_xs") and self.cached_xs is not None
         if is_multi:
             count = len(self.cached_xs)
-            core_map = {0: ("_I", 0, ".iq"), 1: ("_S", 1, ".sq"), 2: ("_F", 2, ".fq"), 3: ("_G", 3, ".gr")}
-            cal_map = {0: (".caliq", 0), 1: (".calsq", 1), 2: (".calfq", 2), 3: (".calgr", 3)}
+            core_map = {
+                0: ("_I", 0, ".iq"),
+                1: ("_S", 1, ".sq"),
+                2: ("_F", 2, ".fq"),
+                3: ("_G", 3, ".gr"),
+            }
+            cal_map = {
+                0: (".caliq", 0),
+                1: (".calsq", 1),
+                2: (".calfq", 2),
+                3: (".calgr", 3),
+            }
             for k in range(count):
                 if hasattr(self, "cached_titles") and self.cached_titles and k < len(self.cached_titles):
                     base_name = self.cached_titles[k]
@@ -1262,7 +1430,11 @@ class PlotWindow(QMainWindow):
                     suf, ax, ext = core_map[idx]
                     try:
                         if xs_src and ys_src and len(xs_src) > ax and len(ys_src) > ax:
-                            written += _write_xy(os.path.join(folder, f"{base}{suf}{ext}"), xs_src[ax], ys_src[ax])
+                            written += _write_xy(
+                                os.path.join(folder, f"{base}{suf}{ext}"),
+                                xs_src[ax],
+                                ys_src[ax],
+                            )
                     except Exception:
                         pass
                 if selected_cal:
@@ -1270,40 +1442,73 @@ class PlotWindow(QMainWindow):
                         ext, ax = cal_map[idx]
                         try:
                             if xs_src and ys_src and len(xs_src) > ax and len(ys_src) > ax:
-                                written += _write_xy(os.path.join(folder, f"{base}{ext}"), xs_src[ax], ys_src[ax])
+                                written += _write_xy(
+                                    os.path.join(folder, f"{base}{ext}"),
+                                    xs_src[ax],
+                                    ys_src[ax],
+                                )
                         except Exception:
                             pass
         else:
-            xs_src = self.xs;
-            ys_src = self.ys;
-            base_name = self.file_name or "data";
+            xs_src = self.xs
+            ys_src = self.ys
+            base_name = self.file_name or "data"
             base = os.path.splitext(base_name)[0]
-            core_map = {0: ("_I", 0, ".iq"), 1: ("_S", 1, ".sq"), 2: ("_F", 2, ".fq"), 3: ("_G", 3, ".gr")}
+            core_map = {
+                0: ("_I", 0, ".iq"),
+                1: ("_S", 1, ".sq"),
+                2: ("_F", 2, ".fq"),
+                3: ("_G", 3, ".gr"),
+            }
             for idx in selected_core:
                 suf, ax, ext = core_map[idx]
                 try:
                     if xs_src and ys_src and len(xs_src) > ax and len(ys_src) > ax:
-                        written += _write_xy(os.path.join(folder, f"{base}{suf}{ext}"), xs_src[ax], ys_src[ax])
+                        written += _write_xy(
+                            os.path.join(folder, f"{base}{suf}{ext}"),
+                            xs_src[ax],
+                            ys_src[ax],
+                        )
                 except Exception:
                     pass
 
             def _xy_or_none(ax, y):
                 try:
-                    if xs_src is None or len(xs_src) <= ax or y is None: return None, None
+                    if xs_src is None or len(xs_src) <= ax or y is None:
+                        return None, None
                     return xs_src[ax], y
                 except Exception:
                     return None, None
 
             extra_sources = [
-                ("_Sq_original", 1, lambda: _xy_or_none(1, self.sq_original_data), ".sq"),
-                ("_Sq_polynomial", 1, lambda: _xy_or_none(1, self.sq_polynomial_data), ".sq"),
+                (
+                    "_Sq_original",
+                    1,
+                    lambda: _xy_or_none(1, self.sq_original_data),
+                    ".sq",
+                ),
+                (
+                    "_Sq_polynomial",
+                    1,
+                    lambda: _xy_or_none(1, self.sq_polynomial_data),
+                    ".sq",
+                ),
                 ("_f2", 1, lambda: _xy_or_none(1, self.mean_sq_fi), ".dat"),
                 ("_favg2", 1, lambda: _xy_or_none(1, self.sq_mean_fi), ".dat"),
-                ("_Fq_smoothed", 2, lambda: _xy_or_none(2, self.fq_smoothed_data), ".fq"),
-                ("_Gr_smoothed", 3,
-                 lambda: (self.gr_smoothed_data[0], self.gr_smoothed_data[1]) if self.gr_smoothed_data else (None,
-                                                                                                             None),
-                 ".gr"),
+                (
+                    "_Fq_smoothed",
+                    2,
+                    lambda: _xy_or_none(2, self.fq_smoothed_data),
+                    ".fq",
+                ),
+                (
+                    "_Gr_smoothed",
+                    3,
+                    lambda: (
+                        (self.gr_smoothed_data[0], self.gr_smoothed_data[1]) if self.gr_smoothed_data else (None, None)
+                    ),
+                    ".gr",
+                ),
             ]
             for i in selected_extras:
                 suf, _ax, getter, ext = extra_sources[i]
@@ -1314,12 +1519,21 @@ class PlotWindow(QMainWindow):
                 except Exception:
                     pass
             if selected_cal:
-                cal_map = {0: (".caliq", 0), 1: (".calsq", 1), 2: (".calfq", 2), 3: (".calgr", 3)}
+                cal_map = {
+                    0: (".caliq", 0),
+                    1: (".calsq", 1),
+                    2: (".calfq", 2),
+                    3: (".calgr", 3),
+                }
                 for idx in selected_cal:
                     ext, ax = cal_map[idx]
                     try:
                         if xs_src and ys_src and len(xs_src) > ax and len(ys_src) > ax:
-                            written += _write_xy(os.path.join(folder, f"{base}{ext}"), xs_src[ax], ys_src[ax])
+                            written += _write_xy(
+                                os.path.join(folder, f"{base}{ext}"),
+                                xs_src[ax],
+                                ys_src[ax],
+                            )
                     except Exception:
                         pass
         return written
@@ -1329,29 +1543,33 @@ class PlotWindow(QMainWindow):
             from PySide6.QtSvg import QSvgGenerator
         except Exception:
             QSvgGenerator = None
-        filters = "PNG (*.png);;JPEG (*.jpg *.jpeg);;SVG (*.svg);;PDF (*.pdf);;All Supported (*.png *.jpg *.jpeg *.svg *.pdf);;All Files (*)"
+        filters = (
+            "PNG (*.png);;JPEG (*.jpg *.jpeg);;SVG (*.svg);;PDF (*.pdf);;"
+            "All Supported (*.png *.jpg *.jpeg *.svg *.pdf);;All Files (*)"
+        )
         default_name = (self.file_name or "plot") + "_figure.png"
         # Reuse the folder remembered by the other save dialogs.
         settings = QSettings("EZPDF", "EZPDF")
         last_dir = settings.value("last_dir", "") or ""
         start_path = os.path.join(last_dir, default_name) if last_dir else default_name
         file_path, selected_filter = QFileDialog.getSaveFileName(self, "Save figure", start_path, filters)
-        if not file_path: return
+        if not file_path:
+            return
         ext = os.path.splitext(file_path)[1].lower()
         if not ext:
             if "SVG" in selected_filter.upper():
-                ext = ".svg";
+                ext = ".svg"
                 file_path += ext
             elif "PDF" in selected_filter.upper():
-                ext = ".pdf";
+                ext = ".pdf"
                 file_path += ext
             elif "JPEG" in selected_filter.upper():
-                ext = ".jpg";
+                ext = ".jpg"
                 file_path += ext
             else:
-                ext = ".png";
+                ext = ".png"
                 file_path += ext
-        selected = [pw for cb, pw in zip(self.plot_checkboxes, self.plots) if cb.isChecked()]
+        selected = [pw for cb, pw in zip(self.plot_checkboxes, self.plots, strict=False) if cb.isChecked()]
         if not selected:
             QMessageBox.information(self, "No plots selected", "Please enable at least one plot to save.")
             return
@@ -1360,42 +1578,42 @@ class PlotWindow(QMainWindow):
         settings.sync()
         union_rect = self.main_widget.rect()
         if ext == ".svg" and QSvgGenerator is not None:
-            gen = QSvgGenerator();
-            gen.setFileName(file_path);
-            gen.setSize(QSize(union_rect.width(), union_rect.height()));
+            gen = QSvgGenerator()
+            gen.setFileName(file_path)
+            gen.setSize(QSize(union_rect.width(), union_rect.height()))
             gen.setViewBox(union_rect)
-            p = QPainter(gen);
-            self.main_widget.render(p, QPoint());
-            p.end();
+            p = QPainter(gen)
+            self.main_widget.render(p, QPoint())
+            p.end()
             return
         if ext == ".pdf":
-            writer = QPdfWriter(file_path);
-            writer.setResolution(300);
-            writer.setPageMargins(QMarginsF(0, 0, 0, 0));
-            dpi = writer.resolution();
-            pdf_rect = union_rect;
-            w_pt = pdf_rect.width() * 72.0 / dpi;
-            h_pt = pdf_rect.height() * 72.0 / dpi;
+            writer = QPdfWriter(file_path)
+            writer.setResolution(300)
+            writer.setPageMargins(QMarginsF(0, 0, 0, 0))
+            dpi = writer.resolution()
+            pdf_rect = union_rect
+            w_pt = pdf_rect.width() * 72.0 / dpi
+            h_pt = pdf_rect.height() * 72.0 / dpi
             writer.setPageSize(QPageSize(QSizeF(w_pt, h_pt), QPageSize.Unit.Point))
-            p = QPainter(writer);
-            self.main_widget.render(p, QPoint());
-            p.end();
+            p = QPainter(writer)
+            self.main_widget.render(p, QPoint())
+            p.end()
             return
-        scale = 6.0;
-        w = max(1, int(union_rect.width() * scale));
-        h = max(1, int(union_rect.height() * scale));
-        img = QImage(w, h, QImage.Format.Format_ARGB32);
-        img.fill(QColor(255, 255, 255));
-        p = QPainter(img);
-        p.setRenderHint(QPainter.RenderHint.Antialiasing, True);
-        p.setRenderHint(QPainter.RenderHint.TextAntialiasing, True);
+        scale = 6.0
+        w = max(1, int(union_rect.width() * scale))
+        h = max(1, int(union_rect.height() * scale))
+        img = QImage(w, h, QImage.Format.Format_ARGB32)
+        img.fill(QColor(255, 255, 255))
+        p = QPainter(img)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        p.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         try:
             p.setRenderHint(QPainter.RenderHint.HighQualityAntialiasing, True)
         except Exception:
             pass
-        p.scale(scale, scale);
-        self.main_widget.render(p, QPoint());
+        p.scale(scale, scale)
+        self.main_widget.render(p, QPoint())
         p.end()
         if ext in (".jpg", ".jpeg"):
             img.save(file_path, "JPG", quality=100)
@@ -1415,55 +1633,59 @@ class PlotWindow(QMainWindow):
             return 10.0
 
     def update_offsets_and_replot(self):
-        if hasattr(self, "cached_xs") and hasattr(self, "cached_ys"): self.plot_multiple(self.cached_xs, self.cached_ys,
-                                                                                         self.cached_titles)
+        if hasattr(self, "cached_xs") and hasattr(self, "cached_ys"):
+            self.plot_multiple(self.cached_xs, self.cached_ys, self.cached_titles)
 
     def bring_to_front(self):
-        self.show();
+        self.show()
         self.raise_()
 
     def enable_graphs(self, enable_iq=None, enable_sq=None, enable_fq=None, enable_gr=None):
         def set_graph_state(index, enable):
             if enable is not None:
-                self.plot_checkboxes[index].blockSignals(True);
-                self.plot_checkboxes[index].setChecked(enable);
+                self.plot_checkboxes[index].blockSignals(True)
+                self.plot_checkboxes[index].setChecked(enable)
                 self.plot_checkboxes[index].blockSignals(False)
                 if enable:
                     self.plots[index].show()
                 else:
                     self.plots[index].hide()
 
-        set_graph_state(0, enable_iq);
-        set_graph_state(1, enable_sq);
-        set_graph_state(2, enable_fq);
-        set_graph_state(3, enable_gr);
+        set_graph_state(0, enable_iq)
+        set_graph_state(1, enable_sq)
+        set_graph_state(2, enable_fq)
+        set_graph_state(3, enable_gr)
         self.update_visibility()
 
     def _install_xy_readouts(self):
-        self._xy_labels = [];
-        self._mouse_proxies = [];
+        self._xy_labels = []
+        self._mouse_proxies = []
         self._active_idx = None
         for idx, pw in enumerate(self.plots):
-            vb = pw.getPlotItem().getViewBox();
+            vb = pw.getPlotItem().getViewBox()
             lbl = pg.TextItem("", anchor=(1, 1), color=(40, 40, 40))
             try:
                 lbl.setFill(pg.mkBrush(255, 255, 255, 180))
             except Exception:
                 pass
-            lbl.setFont(QFont("Arial", HUD_PT));
-            lbl.setZValue(1e6);
-            lbl.setVisible(False);
-            pw.addItem(lbl);
+            lbl.setFont(QFont("Arial", HUD_PT))
+            lbl.setZValue(1e6)
+            lbl.setVisible(False)
+            pw.addItem(lbl)
             self._xy_labels.append(lbl)
             vb.sigRangeChanged.connect(lambda _vb, _vr, i=idx: self._reposition_xy_label(i))
-            proxy = pg.SignalProxy(pw.scene().sigMouseMoved, rateLimit=60,
-                                   slot=lambda ev, i=idx, viewbox=vb: self._on_mouse_moved(i, viewbox, ev))
-            self._mouse_proxies.append(proxy);
+            proxy = pg.SignalProxy(
+                pw.scene().sigMouseMoved,
+                rateLimit=60,
+                slot=lambda ev, i=idx, viewbox=vb: self._on_mouse_moved(i, viewbox, ev),
+            )
+            self._mouse_proxies.append(proxy)
             self._reposition_xy_label(idx)
 
     def _ensure_xy_label(self, idx: int):
-        if not hasattr(self, "_xy_labels"): self._xy_labels = [None] * len(self.plots)
-        pw = self.plots[idx];
+        if not hasattr(self, "_xy_labels"):
+            self._xy_labels = [None] * len(self.plots)
+        pw = self.plots[idx]
         lbl = None if idx >= len(self._xy_labels) else self._xy_labels[idx]
         if lbl is None or lbl.scene() is None:
             lbl = pg.TextItem("", anchor=(1, 1), color=(40, 40, 40))
@@ -1471,49 +1693,53 @@ class PlotWindow(QMainWindow):
                 lbl.setFill(pg.mkBrush(255, 255, 255, 180))
             except Exception:
                 pass
-            lbl.setFont(QFont("Arial", HUD_PT));
-            lbl.setZValue(1e6);
-            lbl.setVisible(False);
+            lbl.setFont(QFont("Arial", HUD_PT))
+            lbl.setZValue(1e6)
+            lbl.setVisible(False)
             pw.addItem(lbl)
-            if idx >= len(self._xy_labels): self._xy_labels.extend([None] * (idx + 1 - len(self._xy_labels)))
+            if idx >= len(self._xy_labels):
+                self._xy_labels.extend([None] * (idx + 1 - len(self._xy_labels)))
             self._xy_labels[idx] = lbl
         self._reposition_xy_label(idx)
 
     def _reposition_xy_label(self, idx: int):
         try:
-            pw = self.plots[idx];
-            vb = pw.getViewBox();
-            (x0, x1), (y0, y1) = vb.viewRange();
-            dx = 0.05 * (x1 - x0);
-            dy = 0.08 * (y1 - y0);
+            pw = self.plots[idx]
+            vb = pw.getViewBox()
+            (x0, x1), (y0, y1) = vb.viewRange()
+            dx = 0.05 * (x1 - x0)
+            dy = 0.08 * (y1 - y0)
             self._xy_labels[idx].setPos(x1 - dx, y0 + dy)
         except Exception:
             pass
 
     def _on_mouse_moved(self, idx: int, vb, ev):
         try:
-            pos = ev[0] if isinstance(ev, (tuple, list)) else ev;
+            pos = ev[0] if isinstance(ev, (tuple, list)) else ev
             inside = vb.sceneBoundingRect().contains(pos)
             if inside:
                 for j, lbl in enumerate(self._xy_labels):
-                    if lbl is None: continue
+                    if lbl is None:
+                        continue
                     lbl.setVisible(j == idx)
-                p = vb.mapSceneToView(pos);
-                val_x = p.x();
+                p = vb.mapSceneToView(pos)
+                val_x = p.x()
                 val_y = p.y()
-                if vb.state['logMode'][1]: val_y = 10 ** val_y
-                self._xy_labels[idx].setText(f"x = {val_x:.3f},  y = {val_y:.3f}");
-                self._reposition_xy_label(idx);
+                if vb.state["logMode"][1]:
+                    val_y = 10**val_y
+                self._xy_labels[idx].setText(f"x = {val_x:.3f},  y = {val_y:.3f}")
+                self._reposition_xy_label(idx)
                 self._active_idx = idx
             else:
-                if self._active_idx == idx and self._xy_labels[idx] is not None: self._xy_labels[idx].setVisible(
-                    False); self._active_idx = None
+                if self._active_idx == idx and self._xy_labels[idx] is not None:
+                    self._xy_labels[idx].setVisible(False)
+                    self._active_idx = None
         except Exception:
             pass
 
     def _force_x_from_zero(self, plot_widget):
         try:
-            vb = plot_widget.getViewBox();
+            vb = plot_widget.getViewBox()
             (x0, x1), (_y0, _y1) = vb.viewRange()
             if x1 <= 0:
                 plot_widget.setXRange(0, 1, padding=0)
@@ -1540,10 +1766,11 @@ class PlotWindow(QMainWindow):
                         return False
                     # Check pen alpha: items hidden via setPen(transparent)
                     # still report isVisible()=True
-                    pen = item.opts.get('pen', None)
+                    pen = item.opts.get("pen", None)
                     if pen is not None:
                         try:
                             from pyqtgraph import mkPen
+
                             p = mkPen(pen)
                             if p.color().alpha() == 0:
                                 return False
@@ -1574,9 +1801,12 @@ class PlotWindow(QMainWindow):
                     cur_xmax = float(x_finite.max())
                     cur_ymin = float(y_finite.min())
                     cur_ymax = float(y_finite.max())
-                    if xmax is None or cur_xmax > xmax: xmax = cur_xmax
-                    if ymin is None or cur_ymin < ymin: ymin = cur_ymin
-                    if ymax is None or cur_ymax > ymax: ymax = cur_ymax
+                    if xmax is None or cur_xmax > xmax:
+                        xmax = cur_xmax
+                    if ymin is None or cur_ymin < ymin:
+                        ymin = cur_ymin
+                    if ymax is None or cur_ymax > ymax:
+                        ymax = cur_ymax
                 except Exception:
                     continue
 
@@ -1589,7 +1819,7 @@ class PlotWindow(QMainWindow):
             else:
                 vb.autoRange()
                 self._force_x_from_zero(pw)
-        except Exception as e:
+        except Exception:
             try:
                 pw.getViewBox().autoRange()
                 self._force_x_from_zero(pw)

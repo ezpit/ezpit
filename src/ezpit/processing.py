@@ -1,14 +1,26 @@
-import numpy as np
-from scipy.spatial.distance import cdist
-from scipy import interpolate
 import io
+import os
 import warnings
-from math import factorial  # [EN] Mathematical factorial function / [KR] 수학 팩토리얼 함수
-# --- [EN] Added imports for Whittaker smoothing / [KR] Whittaker 스무딩 기능을 위해 추가된 라이브러리 ---
-import scipy.sparse as sp  # [EN] Sparse matrix package for efficient memory usage / [KR] 메모리를 효율적으로 쓰는 희소 행렬 패키지
-from scipy.linalg import cho_factor, cho_solve, LinAlgError  # [EN] Linear algebra solvers (Cholesky decomposition) / [KR] 선형대수 계산 (촐레스키 분해 및 해 구하기)
-from collections import Counter  # [EN] Dict subclass for counting hashable objects / [KR] 리스트 내 요소의 개수를 세는 도구
+from collections import (
+    Counter,
+)  # [EN] Dict subclass for counting hashable objects / [KR] 리스트 내 요소의 개수를 세는 도구
+from math import (
+    factorial,
+)  # [EN] Mathematical factorial function / [KR] 수학 팩토리얼 함수
 
+import numpy as np
+
+# --- [EN] Added imports for Whittaker smoothing / [KR] Whittaker 스무딩 기능을 위해 추가된 라이브러리 ---
+# [EN] Sparse matrix package for efficient memory usage
+# [KR] 메모리를 효율적으로 쓰는 희소 행렬 패키지
+import scipy.sparse as sp
+from scipy import interpolate
+from scipy.linalg import (
+    LinAlgError,
+    cho_factor,
+    cho_solve,
+)  # [EN] Linear algebra solvers (Cholesky decomposition) / [KR] 선형대수 계산 (촐레스키 분해 및 해 구하기)
+from scipy.spatial.distance import cdist
 
 # Messages already reported by _warn_once(), so a warning about the same
 # situation is not repeated on every recalculation (parameter sliders trigger
@@ -37,6 +49,7 @@ def reset_warning_history():
 def load_atom_name_positions(file_path, valid_symbols):
     """
     [EN] Load atom names and (x, y, z) positions from an .xyz file.
+
          Header lines are skipped AUTOMATICALLY and robustly — any number of them,
          in any style. A line is treated as an atom ONLY when:
              (1) it has at least 4 whitespace-separated tokens, AND
@@ -76,11 +89,12 @@ def load_atom_name_positions(file_path, valid_symbols):
             (element/ion list from the form-factor table). REQUIRED.
             [KR] 허용 화학종 기호(form-factor 테이블의 원소/이온 목록). 필수.
 
-    Returns:
+    Returns
+    -------
         atom_names (list[str])        : [EN] Species symbols / [KR] 화학종 기호 리스트
         atom_positions (numpy.ndarray): [EN] (N, 3) float array / [KR] (N, 3) 실수 배열
     """
-    with open(file_path, 'r') as f:
+    with open(file_path) as f:
         lines = f.readlines()
 
     # [EN] Accepted-symbol set from the form-factor table (may contain ions).
@@ -128,9 +142,9 @@ def load_atom_name_positions(file_path, valid_symbols):
 
     if not atom_positions:
         raise ValueError(
-            "No atom coordinates found in '{0}'. Expected lines of the form "
+            f"No atom coordinates found in '{file_path}'. Expected lines of the form "
             "'Element x y z' (e.g. 'C 1.23 4.56 7.89'), where the symbol is in "
-            "your form-factor table (valid_symbols).".format(file_path)
+            "your form-factor table (valid_symbols)."
         )
 
     atom_positions = np.array(atom_positions, dtype=float)
@@ -146,53 +160,57 @@ def load_atom_name_positions(file_path, valid_symbols):
     #      명시적으로 알립니다.
     # ------------------------------------------------------------------
     total = len(atom_names)
-    ion_names = [s for s in atom_names if ('+' in s) or ('-' in s)]
+    ion_names = [s for s in atom_names if ("+" in s) or ("-" in s)]
     neutral_count = total - len(ion_names)
 
-    fname = file_path.replace('\\', '/').split('/')[-1]
+    fname = file_path.replace("\\", "/").split("/")[-1]
     if ion_names:
         unique_ions = sorted(set(ion_names))
-        print("[load_atom_name_positions] '{0}': {1} atoms read "
-              "({2} neutral, {3} ion) — IONS DETECTED: {4}".format(
-                  fname, total, neutral_count, len(ion_names),
-                  ", ".join(unique_ions)))
+        print(
+            "[load_atom_name_positions] '{}': {} atoms read ({} neutral, {} ion) — IONS DETECTED: {}".format(
+                fname, total, neutral_count, len(ion_names), ", ".join(unique_ions)
+            )
+        )
     else:
-        print("[load_atom_name_positions] '{0}': {1} atoms read "
-              "(all neutral, no ions).".format(fname, total))
+        print(f"[load_atom_name_positions] '{fname}': {total} atoms read (all neutral, no ions).")
 
     return atom_names, atom_positions
 
 
 def load_atom_names(file_path):
     """
-    database_atom_names = losa.load_atom_names(compton_aff_element_file)
+    database_atom_names = losa.load_atom_names(compton_aff_element_file).
+
     print('database_atom_names = ', database_atom_names)
     print all atom names in compton_element_only.txt
-    database_atom_names =  ['H', 'He', 'Li', 'Be',,,,,,,,,,,'U']
+    database_atom_names =  ['H', 'He', 'Li', 'Be',,,,,,,,,,,'U'].
     """
-    with open(file_path, 'r') as f:
-        atom_list = [line.strip() for line in f.readlines() if line.strip() != '']
+    with open(file_path) as f:
+        atom_list = [line.strip() for line in f.readlines() if line.strip() != ""]
     return atom_list
 
 
 def load_scattering_factors(file_path):
     """
     [EN] Load scattering factor parameters (a, b, c...) from a file.
+
     [KR] 파일에서 산란 인자 파라미터(a, b, c 등)를 불러옵니다.
 
-    Returns:
+    Returns
+    -------
         numpy.ndarray: [EN] 2D array of floats / [KR] 실수형 2차원 배열
     """
-    with open(file_path, 'r') as f:
+    with open(file_path) as f:
         data = []
         for line in f:
-            data.append([float(val) for val in line.strip().split('\t')])
+            data.append([float(val) for val in line.strip().split("\t")])
     return np.array(data)
 
 
 def parse_composition(composition):
     """
     [EN] Parse a composition string into a dictionary (EZPDF_GUI_3 helpers.py behaviour).
+
          Both spaced and compact styles are accepted, and a quantity of 1 may be
          omitted. All of the following give {'Co': 38, 'O': 119, 'P': 1}:
              'Co 38 O 119 P 1' / 'Co 38 O 119 P' / 'Co38O119P1' / 'Co38O119P'
@@ -213,7 +231,8 @@ def parse_composition(composition):
     Args:
         composition (str or dict): [EN] Composition string or dict / [KR] 조성 문자열 또는 딕셔너리
 
-    Returns:
+    Returns
+    -------
         collections.Counter / dict: {element: count} (count may be float if fractional)
     """
     if isinstance(composition, dict):
@@ -233,8 +252,8 @@ def parse_composition(composition):
 
         if not ch.isupper():
             raise ValueError(
-                'Cannot read "{0}" — expected an element symbol starting '
-                'with a capital letter (e.g. Co 38 O 119 P 1 or Co38O119P)'.format(ch)
+                f'Cannot read "{ch}" — expected an element symbol starting '
+                "with a capital letter (e.g. Co 38 O 119 P 1 or Co38O119P)"
             )
 
         # [EN] Symbol: uppercase + optional lowercase / [KR] 대문자 + 선택적 소문자
@@ -256,14 +275,14 @@ def parse_composition(composition):
         while j < length and compact[j].isdigit():
             ion_digits += compact[j]
             j += 1
-        if j < length and (compact[j] == '+' or compact[j] == '-'):
+        if j < length and (compact[j] == "+" or compact[j] == "-"):
             ion_species = element + ion_digits + compact[j]
             raise ValueError(
-                "Composition contains an ion: '{0}' (in \"{1}\"). Ionic species such "
+                f"Composition contains an ion: '{ion_species}' (in \"{composition}\"). Ionic species such "
                 "as 'Fe2+' or 'O2-' cannot be used in the composition field — use "
-                "the neutral element instead (e.g. '{2}' not '{0}'). Ions are only "
+                f"the neutral element instead (e.g. '{element}' not '{ion_species}'). Ions are only "
                 "supported in the .xyz structure file, not in the "
-                "composition.".format(ion_species, composition, element)
+                "composition."
             )
 
         # [EN] Quantity: digits + at most one dot, or nothing (=1)
@@ -273,9 +292,7 @@ def parse_composition(composition):
         while i < length and (compact[i].isdigit() or compact[i] == "."):
             if compact[i] == ".":
                 if seen_dot:
-                    raise ValueError(
-                        "'{0}': count has more than one decimal point".format(element)
-                    )
+                    raise ValueError(f"'{element}': count has more than one decimal point")
                 seen_dot = True
             digits += compact[i]
             i += 1
@@ -286,20 +303,16 @@ def parse_composition(composition):
             try:
                 quantity = float(digits)
             except ValueError:
-                raise ValueError("'{0}': '{1}' is not a valid number".format(element, digits))
+                raise ValueError(f"'{element}': '{digits}' is not a valid number") from None
             if quantity <= 0:
-                raise ValueError(
-                    "'{0}': count must be a positive number (got {1})".format(element, digits)
-                )
+                raise ValueError(f"'{element}': count must be a positive number (got {digits})")
             if float(quantity).is_integer():
                 quantity = int(quantity)  # [EN] keep whole as int / [KR] 정수는 int 유지
 
         composition_dict[element] += quantity
 
     if not composition_dict:
-        raise ValueError(
-            'Invalid composition string "{0}": no element found'.format(composition)
-        )
+        raise ValueError(f'Invalid composition string "{composition}": no element found')
 
     return composition_dict
 
@@ -307,6 +320,7 @@ def parse_composition(composition):
 def composition_weights(composition):
     """
     [EN] Turn a composition dict into unique element names and their amounts (weights).
+
          Fraction-safe counterpart of convert_atom_names() + group_atoms().
          Form-factor averages need only per-element amounts:
              <f>   = sum_k(c_k * f_k)   / sum_k(c_k)
@@ -320,7 +334,8 @@ def composition_weights(composition):
     Args:
         composition (dict or str): [EN] Composition (str is parsed) / [KR] 조성
 
-    Returns:
+    Returns
+    -------
         (names, weights):
             names (list[str])      : [EN] Unique element names / [KR] 고유 원소 이름
             weights (numpy.ndarray): [EN] Amounts as floats / [KR] 각 원소의 양 (실수)
@@ -342,13 +357,14 @@ def composition_weights(composition):
 
 def convert_atom_names(composition):
     """
-    [EN] Convert a whole-number composition (dict OR string) to a full list of
+    [EN] Convert a whole-number composition (dict OR string) to a full list of.
+
          atom names, one entry per atom (xyz-model / theoretical paths).
          For FRACTIONAL amounts, use composition_weights() instead.
     [KR] 정수 조성(딕셔너리 또는 문자열)을 원자 하나당 한 항목 리스트로 변환.
          소수 조성은 composition_weights()를 사용하세요.
     Ex (dict)  : {'Co': 3, 'O': 4, 'P': 1} -> ['Co','Co','Co','O','O','O','O','P']
-    Ex (string): "Co3O4P1" / "Co 3 O 4 P" / "Co3O4P" -> same
+    Ex (string): "Co3O4P1" / "Co 3 O 4 P" / "Co3O4P" -> same.
     """
     comp = parse_composition(composition)
 
@@ -357,9 +373,9 @@ def convert_atom_names(composition):
     for el, count in comp.items():
         if not float(count).is_integer():
             raise ValueError(
-                "'{0}': fractional amount {1} cannot be expanded into individual "
+                f"'{el}': fractional amount {count} cannot be expanded into individual "
                 "atoms. Use composition_weights() instead, or scale every element "
-                "by the same factor (e.g. Li0.2Co0.36 -> Li20Co36).".format(el, count)
+                "by the same factor (e.g. Li0.2Co0.36 -> Li20Co36)."
             )
 
     return [el for el, count in comp.items() for _ in range(int(count))]
@@ -368,9 +384,11 @@ def convert_atom_names(composition):
 def get_scattering_factors(atom_names, database_atom_names, database_scat_factors):
     """
     [EN] Retrieve scattering factors for specific atoms from the database.
+
     [KR] 데이터베이스에서 특정 원자들에 해당하는 산란 인자를 가져옵니다.
 
-    Returns:
+    Returns
+    -------
         numpy.ndarray: [EN] Array of scattering parameters / [KR] 산란 파라미터 배열
     """
     scat_factors = []
@@ -379,16 +397,18 @@ def get_scattering_factors(atom_names, database_atom_names, database_scat_factor
             idx = database_atom_names.index(atom)
             scat_factors.append(database_scat_factors[idx])
         else:
-            raise ValueError("There is no atom {0} in database".format(atom))
+            raise ValueError(f"There is no atom {atom} in database")
     return np.asarray(scat_factors)
 
 
 def get_compton_scattering_factors(atom_names, database_atom_names, database_scat_factors):
     """
     [EN] Retrieve Compton scattering factors and atomic numbers.
+
     [KR] 콤프턴 산란 인자와 원자 번호를 가져옵니다.
 
-    Returns:
+    Returns
+    -------
         scat_factors (numpy.ndarray): [EN] Compton parameters / [KR] 콤프턴 파라미터
         atomic_number (list): [EN] List of atomic numbers (integers) / [KR] 원자 번호 리스트 (정수)
     """
@@ -400,16 +420,18 @@ def get_compton_scattering_factors(atom_names, database_atom_names, database_sca
             scat_factors.append(database_scat_factors[idx])
             atomic_number.append(idx + 1)
         else:
-            raise ValueError("There is no atom {0} in database".format(atom))
+            raise ValueError(f"There is no atom {atom} in database")
     return np.asarray(scat_factors), atomic_number
 
 
 def group_atoms(atom_names):
     """
     [EN] Group identical atoms and count their occurrences.
+
     [KR] 동일한 원자들을 그룹화하고 그 개수를 셉니다.
 
-    Returns:
+    Returns
+    -------
         atom_uni_names (list): [EN] Unique atom names / [KR] 고유한 원자 이름
         atom_counts (numpy.ndarray): [EN] Counts per atom / [KR] 원자별 개수
         atom_indices (numpy.ndarray): [EN] Indices mapping to unique names / [KR] 고유 이름에 매핑되는 인덱스
@@ -424,19 +446,21 @@ def group_atoms(atom_names):
 def make_folder(file_path):
     """
     [EN] Create a directory if it does not exist.
+
     [KR] 폴더가 존재하지 않으면 새로 생성합니다.
     """
     file_base = os.path.dirname(file_path)
     if not os.path.exists(file_base):
         try:
             os.makedirs(file_base, exist_ok=True)
-        except OSError:
-            raise ValueError("Can't create the folder: {}".format(file_base))
+        except OSError as e:
+            raise ValueError(f"Can't create the folder: {file_base}") from e
 
 
 def save_txt(filename, q_Iq):
     """
     [EN] Save numpy array data to a text file.
+
     [KR] Numpy 배열 데이터를 텍스트 파일로 저장합니다.
     """
     make_folder(filename)
@@ -446,6 +470,7 @@ def save_txt(filename, q_Iq):
 def create_atom_distance_matrix(atom_positions):
     """
     [EN] Calculate the pairwise Euclidean distance matrix for all atoms.
+
          This matrix is essential for the Debye scattering equation (sin(qr)/qr).
     [KR] 모든 원자 쌍 사이의 유클리드 거리 행렬을 계산합니다.
          이 행렬은 Debye 산란 공식 (sin(qr)/qr) 계산에 필수적입니다.
@@ -459,7 +484,8 @@ def create_atom_distance_matrix(atom_positions):
                  N은 원자의 개수이며, 3은 (x, y, z) 좌표를 나타냅니다.
                  (데이터 타입: float)
 
-    Returns:
+    Returns
+    -------
         distance_matrix (numpy.ndarray):
             [EN] Output symmetric distance matrix with shape (N, N).
                  Element (i, j) represents the Euclidean distance between atom i and atom j.
@@ -474,17 +500,20 @@ def create_atom_distance_matrix(atom_positions):
 
     return distance_matrix
 
+
 def __cal_fi(scat_values, q):
     """
     [EN] Calculate atomic form factor f(q) using 5-Gaussian approximation.
+
     [KR] 5-가우시안 근사를 사용하여 원자 형상 인자 f(q)를 계산합니다.
-    Formula: f(q) = sum(ai * exp(-bi * (q/4pi)^2)) + c
+    Formula: f(q) = sum(ai * exp(-bi * (q/4pi)^2)) + c.
 
     Args:
         scat_values (list): [EN] Coefficients [a1, b1, ..., c] / [KR] 계수 리스트
         q (float/array): [EN] Momentum transfer / [KR] 운동량 변화량 Q
 
-    Returns:
+    Returns
+    -------
         fi (float/array): [EN] Calculated form factor / [KR] 계산된 형상 인자
     """
     k_sq = (0.25 * q / np.pi) ** 2
@@ -501,6 +530,7 @@ def __cal_fi(scat_values, q):
 def __cal_compton_fi(compton_scattering_factors, q):
     """
     [EN] Calculate Compton scattering form factor (Inelastic scattering).
+
     [KR] 콤프턴 산란 형상 인자를 계산합니다 (비탄성 산란).
     """
     k_sq = (0.25 * q / np.pi) ** 2
@@ -514,10 +544,21 @@ def __cal_compton_fi(compton_scattering_factors, q):
     return fi
 
 
-def compton_cal_exp(atom_indices, compton_scat_parms, compton_scattering_factors,
-                    atomic_number, qmin, qmax, qstep, wavelength, alpha, weights=None):
+def compton_cal_exp(
+    atom_indices,
+    compton_scat_parms,
+    compton_scattering_factors,
+    atomic_number,
+    qmin,
+    qmax,
+    qstep,
+    wavelength,
+    alpha,
+    weights=None,
+):
     """
     [EN] Calculate total experimental Compton scattering intensity.
+
          Includes Breit-Dirac recoil factor correction.
          Supports BOTH integer and fractional compositions:
            - Integer (default): pass 'atom_indices' (one entry per atom); each
@@ -545,7 +586,8 @@ def compton_cal_exp(atom_indices, compton_scat_parms, compton_scattering_factors
         wavelength (float): [EN] X-ray wavelength (Angstrom) / [KR] X선 파장
         alpha (float): [EN] Recoil parameter (usually 2 or 3) / [KR] 반동 파라미터
 
-    Returns:
+    Returns
+    -------
         q_range (numpy.ndarray): [EN] Q axis / [KR] Q 축 데이터
         list_compton_scat (list): [EN] Compton intensity / [KR] 콤프턴 산란 강도
     """
@@ -566,15 +608,14 @@ def compton_cal_exp(atom_indices, compton_scat_parms, compton_scattering_factors
     #      - weights 있음 → 소수 조성, 그대로 사용.
     #      - 없음         → 정수 조성, atom_indices에서 원소별 원자 수를 셈.
     if weights is not None:
-        c_k = np.asarray(weights, dtype=float)                       # (num_fact,)
+        c_k = np.asarray(weights, dtype=float)  # (num_fact,)
     else:
-        c_k = np.bincount(np.asarray(atom_indices),
-                          minlength=num_fact).astype(float)          # (num_fact,)
-    total_c = np.sum(c_k)                                            # Σ c_k
+        c_k = np.bincount(np.asarray(atom_indices), minlength=num_fact).astype(float)  # (num_fact,)
+    total_c = np.sum(c_k)  # Σ c_k
 
     # [EN] Pre-fetch atomic numbers per unique element as a float array.
     # [KR] 고유 원소별 원자번호를 실수 배열로 준비.
-    Z_k = np.asarray(atomic_number, dtype=float)                    # (num_fact,)
+    Z_k = np.asarray(atomic_number, dtype=float)  # (num_fact,)
 
     for q in q_range:
         part_B = (q / (4.0 * np.pi)) ** 2.0
@@ -583,18 +624,18 @@ def compton_cal_exp(atom_indices, compton_scat_parms, compton_scattering_factors
 
         # [EN] Compton form factors for all unique elements at this q.
         # [KR] 이 q에서 모든 고유 원소의 Compton form factor.
-        list_fi = np.array([__cal_compton_fi(compton_scat_parms[int(atomic_number[k]) - 1], q)
-                            for k in range(num_fact)])
+        list_fi = np.array(
+            [__cal_compton_fi(compton_scat_parms[int(atomic_number[k]) - 1], q) for k in range(num_fact)]
+        )
 
         # [EN] Weighted sums over unique elements (c_k as the amount of each element).
         #      Σ c_k·Z_k  and  Σ c_k·(f_k²/Z_k), both normalised by Σ c_k.
         # [KR] 고유 원소에 대한 가중 합 (c_k = 각 원소의 양).
         #      Σ c_k·Z_k, Σ c_k·(f_k²/Z_k)를 Σ c_k로 정규화.
         atomic_number_sum = np.sum(c_k * Z_k)
-        fi2_sum = np.sum(c_k * (list_fi ** 2) / Z_k)
+        fi2_sum = np.sum(c_k * (list_fi**2) / Z_k)
 
-        compton_scat = BD_recoil_fact * (atomic_number_sum / total_c
-                                         - fi2_sum / total_c)
+        compton_scat = BD_recoil_fact * (atomic_number_sum / total_c - fi2_sum / total_c)
         list_compton_scat.append(compton_scat)
     return q_range, list_compton_scat
 
@@ -605,10 +646,11 @@ def compton_cal_exp(atom_indices, compton_scat_parms, compton_scattering_factors
 def lorch_function_sinc(Q, Q_max):
     """
     [EN] Calculate the Lorch modification function M(Q).
+
          Used to reduce termination ripples in FFT.
     [KR] Lorch 수정 함수 M(Q)를 계산합니다.
          FFT 시 발생하는 종료 리플(Termination Ripple, 물결무늬 노이즈)을 줄이는 데 사용됩니다.
-    Formula: M(Q) = sin(pi * Q / Q_max) / (pi * Q / Q_max)
+    Formula: M(Q) = sin(pi * Q / Q_max) / (pi * Q / Q_max).
     """
     Q = np.asarray(Q)
     if Q_max == 0:
@@ -621,13 +663,15 @@ def lorch_function_sinc(Q, Q_max):
 def apply_lorch_function(Q, FQ):
     """
     [EN] Apply the Lorch function to F(Q) data.
+
     [KR] F(Q) 데이터에 Lorch 함수를 적용(곱하기)합니다.
 
     Args:
         Q (numpy.ndarray): [EN] Q values / [KR] Q 값 배열
         FQ (numpy.ndarray): [EN] F(Q) intensity values / [KR] F(Q) 강도 배열
 
-    Returns:
+    Returns
+    -------
         modified_FQ (numpy.ndarray): [EN] Lorch-modified F(Q) / [KR] Lorch 보정된 F(Q)
     """
     Q = np.asarray(Q)
@@ -637,12 +681,19 @@ def apply_lorch_function(Q, FQ):
     return FQ * lorch_values
 
 
-def cal_Iq(atom_indices, scattering_factors, atom_distance_matrix,
-           qmin=0.5, qmax=20, qstep=0.05):
+def cal_Iq(
+    atom_indices,
+    scattering_factors,
+    atom_distance_matrix,
+    qmin=0.5,
+    qmax=20,
+    qstep=0.05,
+):
     """
     [EN] Calculate the total Scattering Intensity I(q) based on the Debye scattering equation.
+
          This function computes the sum of coherent scattering from all atom pairs.
-         Formula: I(q) = sum_i sum_j [ f_i(q) * f_j(q) * sin(q*r_ij)/(q*r_ij) ]
+         Formula: I(q) = sum_i sum_j [ f_i(q) * f_j(q) * sin(q*r_ij)/(q*r_ij) ].
 
     [KR] Debye 산란 공식을 기반으로 총 산란 강도 I(q)를 계산합니다.
          모든 원자 쌍 사이의 간섭성 산란 합을 구합니다.
@@ -674,7 +725,8 @@ def cal_Iq(atom_indices, scattering_factors, atom_distance_matrix,
             [EN] Step size for Q. Default is 0.05.
             [KR] Q 계산 간격. 기본값은 0.05.
 
-    Returns:
+    Returns
+    -------
         tuple (numpy.ndarray, list):
             [EN] Returns a tuple containing:
                  - q_range: Array of Q values.
@@ -703,18 +755,25 @@ def cal_Iq(atom_indices, scattering_factors, atom_distance_matrix,
         if q == 0:
             sin_mat = np.ones(np.shape(atom_distance_matrix))
         else:
-            sin_mat = np.sin(q * atom_distance_matrix) / (
-                    q * distance_matrix_non_zero)
+            sin_mat = np.sin(q * atom_distance_matrix) / (q * distance_matrix_non_zero)
         sin_mat[diag_idx] = 1.0
         Iq = fi_mat * np.transpose(fi_mat) * sin_mat
         list_Iq.append(np.sum(Iq))
     return q_range, list_Iq
 
 
-def cal_Sq(atom_indices, scattering_factors, atom_distance_matrix,
-           qmin=0.5, qmax=20, qstep=0.05, return_Iq=False):
+def cal_Sq(
+    atom_indices,
+    scattering_factors,
+    atom_distance_matrix,
+    qmin=0.5,
+    qmax=20,
+    qstep=0.05,
+    return_Iq=False,
+):
     """
     [EN] Calculate theoretical Structure Factor S(q) using the Debye scattering equation.
+
          This function computes I(q), S(q), and F(q) from atomic coordinates and scattering factors.
     [KR] Debye 산란 공식을 사용하여 이론적인 구조 인자 S(q)를 계산합니다.
          원자 좌표와 산란 인자를 바탕으로 I(q), S(q), F(q)를 계산합니다.
@@ -754,7 +813,8 @@ def cal_Sq(atom_indices, scattering_factors, atom_distance_matrix,
             [EN] If True, returns detailed data including I(q), F(q), and form factor averages.
             [KR] True일 경우, I(q), F(q), 형상 인자 평균값 등 상세 데이터를 함께 반환합니다.
 
-    Returns:
+    Returns
+    -------
         If return_Iq is False:
             (q_range, list_Sq)
             - q_range (numpy.ndarray): [EN] Generated Q axis / [KR] 생성된 Q 축 데이터
@@ -790,12 +850,11 @@ def cal_Sq(atom_indices, scattering_factors, atom_distance_matrix,
             fi = list_fi[idx]
             fi_mat[i, :] = fi
             fi_sum = fi_sum + fi
-            fi2_sum = fi2_sum + fi ** 2
+            fi2_sum = fi2_sum + fi**2
         if q == 0:
             sin_mat = np.ones(np.shape(atom_distance_matrix))
         else:
-            sin_mat = np.sin(q * atom_distance_matrix) / (
-                    q * distance_matrix_non_zero)
+            sin_mat = np.sin(q * atom_distance_matrix) / (q * distance_matrix_non_zero)
         sin_mat[diag_idx] = 1.0
         Iq = fi_mat * np.transpose(fi_mat) * sin_mat
         list_Iq.append(np.sum(Iq))
@@ -816,10 +875,11 @@ def cal_Sq(atom_indices, scattering_factors, atom_distance_matrix,
 
 def cal_Gr_integral(q, Sq, rmin=0, rmax=100, rstep=0.02, qdamp=0.0):
     """
-    [EN] Calculate the Pair Distribution Function G(r) from Structure Factor S(q) using a direct sine integral transform.
+    [EN] Calculate the Pair Distribution Function G(r) from Structure Factor S(q) using direct sine integral transform.
+
          This method performs a discrete integration (Riemann sum) for each r value.
          It is generally slower than FFT but free from grid artifacts and padding issues.
-         Formula: G(r) = (2/pi) * integral [ Q * (S(Q)-1) * sin(Q*r) ] dQ
+         Formula: G(r) = (2/pi) * integral [ Q * (S(Q)-1) * sin(Q*r) ] dQ.
 
     [KR] 구조 인자 S(q)로부터 직접 사인 적분 변환을 사용하여 쌍 분포 함수 G(r)을 계산합니다.
          각 r 값에 대해 이산 적분(리만 합)을 수행합니다.
@@ -853,7 +913,8 @@ def cal_Gr_integral(q, Sq, rmin=0, rmax=100, rstep=0.02, qdamp=0.0):
             [KR] 제한된 기기 해상도를 시뮬레이션하기 위한 가우시안 감쇠 인자.
                  적용 식: exp(-0.5 * (r * qdamp)^2). 기본값은 0.0 (감쇠 없음).
 
-    Returns:
+    Returns
+    -------
         tuple (numpy.ndarray, numpy.ndarray):
             [EN] Returns a tuple containing:
                  - list_r: The generated r-axis (Angstrom).
@@ -874,12 +935,13 @@ def cal_Gr_integral(q, Sq, rmin=0, rmax=100, rstep=0.02, qdamp=0.0):
     return list_r, list_Gr
 
 
-def cal_Gr_fft(q, Sq, rmin=0, rmax=100, rstep=0.02, qdamp=0.0,
-                     extrapolate_type="linear"):
+def cal_Gr_fft(q, Sq, rmin=0, rmax=100, rstep=0.02, qdamp=0.0, extrapolate_type="linear"):
     """
-    [EN] Calculate the Pair Distribution Function G(r) from Structure Factor S(q) using Inverse Fast Fourier Transform (IFFT).
-         This function handles low-Q extrapolation and zero-padding to achieve the desired real-space resolution (rstep).
-         Formula: G(r) = (2/pi) * FFT_imag[ Q * (S(Q)-1) ]
+    [EN] Calculate the Pair Distribution Function G(r) via Inverse Fast Fourier Transform.
+
+         This function handles low-Q extrapolation and zero-padding to achieve
+         the desired real-space resolution (rstep).
+         Formula: G(r) = (2/pi) * FFT_imag[ Q * (S(Q)-1) ].
 
     [KR] 고속 푸리에 변환(IFFT)을 사용하여 구조 인자 S(q)로부터 쌍 분포 함수 G(r)을 계산합니다.
          Low-Q 영역의 보간(extrapolation)과 제로 패딩(zero-padding)을 처리하여 원하는 실공간 해상도(rstep)를 얻습니다.
@@ -918,7 +980,8 @@ def cal_Gr_fft(q, Sq, rmin=0, rmax=100, rstep=0.02, qdamp=0.0,
             [KR] Low-Q 영역 (0부터 Qmin까지)을 채우기 위한 보간 방법.
                  옵션: 'linear', 'nearest', 'zero', 'slinear', 'quadratic', 'cubic'. 기본값은 'linear'.
 
-    Returns:
+    Returns
+    -------
         tuple (numpy.ndarray, numpy.ndarray):
             [EN] Returns a tuple containing:
                  - r_list: The generated r-axis (Angstrom).
@@ -932,8 +995,7 @@ def cal_Gr_fft(q, Sq, rmin=0, rmax=100, rstep=0.02, qdamp=0.0,
     Fq = (Sq - 1) * q
     pad_Fq = np.zeros(num_point)
     if q[0] > 0.0:
-        f_inter = interpolate.interp1d(q, Fq, fill_value="extrapolate",
-                                       kind=extrapolate_type)
+        f_inter = interpolate.interp1d(q, Fq, fill_value="extrapolate", kind=extrapolate_type)
         pad_Fq[:num_point] = f_inter(np.arange(num_point) * qstep)
     Fq_vals = np.append(pad_Fq, Fq)
     r_list = np.arange(rmin, rmax + rstep, rstep)
@@ -972,10 +1034,22 @@ def cal_Gr_fft(q, Sq, rmin=0, rmax=100, rstep=0.02, qdamp=0.0,
 # ----------------------------------------------------------------------------------
 # [Cal_expSq] Core Analysis Function / 핵심 분석 함수
 # ----------------------------------------------------------------------------------
-def cal_expSq(atom_indices, scattering_factors, expqiq, bkgqiq, qmin=0, qmax=25, qstep=0.01,
-              background_scale=1.1, poly_order=11.0, return_Iq=False, weights=None):
+def cal_expSq(
+    atom_indices,
+    scattering_factors,
+    expqiq,
+    bkgqiq,
+    qmin=0,
+    qmax=25,
+    qstep=0.01,
+    background_scale=1.1,
+    poly_order=11.0,
+    return_Iq=False,
+    weights=None,
+):
     """
     [EN] Core function to calculate Structure Factor S(q) and F(q) from experimental I(q).
+
          Supports BOTH integer and fractional compositions:
            - Integer (default): pass 'atom_indices' (one entry per atom, from
              group_atoms), and each element's form factor is counted with weight 1.
@@ -1008,7 +1082,8 @@ def cal_expSq(atom_indices, scattering_factors, expqiq, bkgqiq, qmin=0, qmax=25,
         poly_order (float): [EN] Polynomial order for correction / [KR] 보정 다항식 차수
         background_scale (float): [EN] Background scale factor / [KR] 배경 스케일
 
-    Returns:
+    Returns
+    -------
         Tuple of 13 values / 13개 값의 튜플:
             q_range, list_Iq, scaled_expIq, list_scaled_bkgIq, list_Sq, norm_list_Sq,
             list_Fq, mean_sq_fi, sq_mean_fi, polynomial_for_sq,
@@ -1034,9 +1109,9 @@ def cal_expSq(atom_indices, scattering_factors, expqiq, bkgqiq, qmin=0, qmax=25,
         data_bkg = load_qiq_file(bkgqiq, min_cols=2, usecols=(0, 1))
         bkg_Iq = data_bkg[:, 1]
     elif bkgqiq is not None:
-        if hasattr(bkgqiq, 'shape') and len(bkgqiq.shape) > 1:
+        if hasattr(bkgqiq, "shape") and len(bkgqiq.shape) > 1:
             bkg_Iq = bkgqiq[1]
-        elif isinstance(bkgqiq, (list, tuple)) and len(bkgqiq) == 2 and hasattr(bkgqiq[0], '__len__'):
+        elif isinstance(bkgqiq, (list, tuple)) and len(bkgqiq) == 2 and hasattr(bkgqiq[0], "__len__"):
             bkg_Iq = bkgqiq[1]
         else:
             bkg_Iq = bkgqiq
@@ -1079,7 +1154,7 @@ def cal_expSq(atom_indices, scattering_factors, expqiq, bkgqiq, qmin=0, qmax=25,
     if weights is not None:
         # [EN] Fractional composition: use given weights directly.
         # [KR] 소수 조성: 주어진 weight 직접 사용.
-        c_k = np.asarray(weights, dtype=float)               # shape: (num_unique_elements,)
+        c_k = np.asarray(weights, dtype=float)  # shape: (num_unique_elements,)
     else:
         # [EN] Integer composition: count how many atoms per unique element
         #      from atom_indices (0,1,2,... referring to scattering_factors rows).
@@ -1087,23 +1162,23 @@ def cal_expSq(atom_indices, scattering_factors, expqiq, bkgqiq, qmin=0, qmax=25,
         num_unique = len(scattering_factors)
         c_k = np.bincount(np.asarray(atom_indices), minlength=num_unique).astype(float)
 
-    total_c = np.sum(c_k)                                     # Σ c_k (= num_atom for integer)
+    total_c = np.sum(c_k)  # Σ c_k (= num_atom for integer)
 
     # [EN] (3) Weighted averages over unique elements (broadcast c_k over q axis).
     #          list_fi_all_q shape: (num_unique, num_q); c_k shape: (num_unique,)
     # [KR] (3) 고유 원소에 대한 가중 평균 (c_k를 q축으로 broadcast).
-    weighted_fi    = c_k[:, None] * list_fi_all_q             # c_k · f_k
-    weighted_fi_sq = c_k[:, None] * (list_fi_all_q ** 2)      # c_k · f_k²
+    weighted_fi = c_k[:, None] * list_fi_all_q  # c_k · f_k
+    weighted_fi_sq = c_k[:, None] * (list_fi_all_q**2)  # c_k · f_k²
 
-    sum_fi    = np.sum(weighted_fi,    axis=0)                # Σ c_k · f_k
-    sum_fi_sq = np.sum(weighted_fi_sq, axis=0)                # Σ c_k · f_k²
+    sum_fi = np.sum(weighted_fi, axis=0)  # Σ c_k · f_k
+    sum_fi_sq = np.sum(weighted_fi_sq, axis=0)  # Σ c_k · f_k²
 
-    sq_mean_fi = (sum_fi / total_c) ** 2                      # <f>²
-    mean_sq_fi = sum_fi_sq / total_c                          # <f²>
+    sq_mean_fi = (sum_fi / total_c) ** 2  # <f>²
+    mean_sq_fi = sum_fi_sq / total_c  # <f²>
 
     # [EN] num_atom kept for backward compatibility (integer path only).
     # [KR] num_atom은 하위 호환성을 위해 유지 (정수 경로).
-    num_atom = int(round(total_c))
+    int(round(total_c))
 
     # 6. Calculate S(q) — PDFgetX3 normalization (default)
     # ------------------------------------------------------------------
@@ -1132,12 +1207,12 @@ def cal_expSq(atom_indices, scattering_factors, expqiq, bkgqiq, qmin=0, qmax=25,
     #   diffraction data into total scattering pair distribution functions.
     #   J. Appl. Cryst. 46, 560-566.
     # ------------------------------------------------------------------
-    normalized_intensity     = list_Iq / sq_mean_fi        # I / <f>^2   (sq_mean_fi = <f>^2)
-    normal_scattering_factor = mean_sq_fi / sq_mean_fi     # <f^2> / <f>^2 (mean_sq_fi = <f^2>)
-    normalization_scale = (np.dot(normalized_intensity, normal_scattering_factor)
-                           / np.dot(normalized_intensity, normalized_intensity))
-    list_Sq = (normalization_scale * normalized_intensity
-               - normal_scattering_factor + 1)
+    normalized_intensity = list_Iq / sq_mean_fi  # I / <f>^2   (sq_mean_fi = <f>^2)
+    normal_scattering_factor = mean_sq_fi / sq_mean_fi  # <f^2> / <f>^2 (mean_sq_fi = <f^2>)
+    normalization_scale = np.dot(normalized_intensity, normal_scattering_factor) / np.dot(
+        normalized_intensity, normalized_intensity
+    )
+    list_Sq = normalization_scale * normalized_intensity - normal_scattering_factor + 1
 
     # ------------------------------------------------------------------
     # [EN] Standard formula (kept for reference, NOT used by default).
@@ -1192,14 +1267,43 @@ def cal_expSq(atom_indices, scattering_factors, expqiq, bkgqiq, qmin=0, qmax=25,
     list_Fq = q_range * (norm_list_Sq - 1.0)
 
     if return_Iq:
-        return q_range, list_Iq, scaled_expIq, list_scaled_bkgIq, list_Sq, norm_list_Sq, list_Fq, mean_sq_fi, sq_mean_fi, polynomial_for_sq, normalized_intensity, normal_scattering_factor, normalization_scale
+        return (
+            q_range,
+            list_Iq,
+            scaled_expIq,
+            list_scaled_bkgIq,
+            list_Sq,
+            norm_list_Sq,
+            list_Fq,
+            mean_sq_fi,
+            sq_mean_fi,
+            polynomial_for_sq,
+            normalized_intensity,
+            normal_scattering_factor,
+            normalization_scale,
+        )
     else:
-        return q_range, list_Iq, scaled_expIq, list_scaled_bkgIq, list_Sq, norm_list_Sq, list_Fq, mean_sq_fi, sq_mean_fi, polynomial_for_sq, normalized_intensity, normal_scattering_factor, normalization_scale
+        return (
+            q_range,
+            list_Iq,
+            scaled_expIq,
+            list_scaled_bkgIq,
+            list_Sq,
+            norm_list_Sq,
+            list_Fq,
+            mean_sq_fi,
+            sq_mean_fi,
+            polynomial_for_sq,
+            normalized_intensity,
+            normal_scattering_factor,
+            normalization_scale,
+        )
 
 
 def cal_fq(qmin, qmax, Sq, qstep=0.01):
     """
     [EN] Calculate the Reduced Structure Function F(q) from Structure Factor S(q).
+
          This function generates the Q-axis based on the length of Sq and computes F(q) = Q * (S(q) - 1).
     [KR] 구조 인자 S(q)로부터 환원 구조 함수 F(q)를 계산합니다.
          Sq의 길이에 맞춰 Q축을 생성하고 F(q) = Q * (S(q) - 1) 공식을 적용합니다.
@@ -1219,11 +1323,15 @@ def cal_fq(qmin, qmax, Sq, qstep=0.01):
 
         qstep (float, optional):
             [EN] Step size for Q. Default is 0.01.
-                 (Note: In this specific implementation using np.linspace, qstep is not directly used to determine the grid size, but is included for parameter consistency).
+                 (Note: In this specific implementation using np.linspace, qstep is
+                 not directly used to determine the grid size, but is included for
+                 parameter consistency).
             [KR] Q 값의 간격. 기본값은 0.01입니다.
-                 (참고: np.linspace를 사용하는 이 구현에서는 그리드 크기 결정에 직접 사용되지 않지만, 파라미터 일관성을 위해 포함되었습니다).
+                 (참고: np.linspace를 사용하는 이 구현에서는 그리드 크기 결정에 직접 사용되지
+                 않지만, 파라미터 일관성을 위해 포함되었습니다).
 
-    Returns:
+    Returns
+    -------
         tuple (numpy.ndarray, numpy.ndarray):
             [EN] A tuple containing (Fq, q_range).
                  - Fq: Calculated Reduced Structure Function F(q).
@@ -1241,11 +1349,21 @@ def cal_fq(qmin, qmax, Sq, qstep=0.01):
     return (Sq - 1) * q_range, q_range
 
 
-def cal_expGr_fft(q, Sq_or_Fq, rmin=0, rmax=100, rstep=0.01, is_Fq=False,
-                  pad_mode="zero", low_q_mode="anchor", extrapolate_type="linear",
-                  return_padding=False):
+def cal_expGr_fft(
+    q,
+    Sq_or_Fq,
+    rmin=0,
+    rmax=100,
+    rstep=0.01,
+    is_Fq=False,
+    pad_mode="zero",
+    low_q_mode="anchor",
+    extrapolate_type="linear",
+    return_padding=False,
+):
     """
-    [EN] Calculate G(r) from S(q) or F(q) using IFFT with low-q extrapolation
+    [EN] Calculate G(r) from S(q) or F(q) using IFFT with low-q extrapolation.
+
          and high-q padding.
 
          Low-Q extrapolation modes (low_q_mode):
@@ -1297,7 +1415,8 @@ def cal_expGr_fft(q, Sq_or_Fq, rmin=0, rmax=100, rstep=0.01, is_Fq=False,
         return_padding (bool)   : if True, also return the three F(q) segments
                                   used for IFFT (for Figure 3 visualization)
 
-    Returns:
+    Returns
+    -------
         if return_padding=False (default):
             (r_list, gr) or (None, None) on error.
 
@@ -1324,7 +1443,7 @@ def cal_expGr_fft(q, Sq_or_Fq, rmin=0, rmax=100, rstep=0.01, is_Fq=False,
         qstep_calc = q[1] - q[0]
 
         if qstep_calc == 0.0:
-            print(f"Error in cal_expGr_fft: qstep is zero (q[1]==q[0]). Cannot divide by zero.")
+            print("Error in cal_expGr_fft: qstep is zero (q[1]==q[0]). Cannot divide by zero.")
             return (None, None, None) if return_padding else (None, None)
 
         num_point = int(np.ceil(q[0] / qstep_calc))
@@ -1351,8 +1470,7 @@ def cal_expGr_fft(q, Sq_or_Fq, rmin=0, rmax=100, rstep=0.01, is_Fq=False,
                 #      May result in F(0) ≠ 0 (not physically guaranteed).
                 # [KR] Linear 외삽 (구버전, scipy interp1d 사용).
                 #      처음 두 점의 기울기로 q=0까지 외삽. F(0) ≠ 0 가능.
-                f_inter = interpolate.interp1d(q, Fq, fill_value="extrapolate",
-                                               kind=extrapolate_type)
+                f_inter = interpolate.interp1d(q, Fq, fill_value="extrapolate", kind=extrapolate_type)
                 pad_Fq[:num_point] = f_inter(np.arange(num_point) * qstep_calc)
 
         # [EN] Save the three segments for visualization (BEFORE Nyquist interpolation)
@@ -1423,16 +1541,16 @@ def cal_expGr_fft(q, Sq_or_Fq, rmin=0, rmax=100, rstep=0.01, is_Fq=False,
             F_full_padded = Fq_pad.copy()
 
             padding_info = {
-                'q_low':         q_low_vis,
-                'F_low':         F_low_vis,
-                'q_exp':         q_exp_vis,
-                'F_exp':         F_exp_vis,
-                'q_pad':         q_pad_vis,
-                'F_pad':         F_pad_vis,
-                'q_full_padded': q_full_padded,   # [EN/KR] Full Q axis (0 → N×qstep)
-                'F_full_padded': F_full_padded,   # [EN/KR] Full padded F(q) fed to IFFT
-                'qstep':         qstep_calc,
-                'total_N':       total_point,
+                "q_low": q_low_vis,
+                "F_low": F_low_vis,
+                "q_exp": q_exp_vis,
+                "F_exp": F_exp_vis,
+                "q_pad": q_pad_vis,
+                "F_pad": F_pad_vis,
+                "q_full_padded": q_full_padded,  # [EN/KR] Full Q axis (0 → N×qstep)
+                "F_full_padded": F_full_padded,  # [EN/KR] Full padded F(q) fed to IFFT
+                "qstep": qstep_calc,
+                "total_N": total_point,
             }
             return r_list, gr, padding_info
         return r_list, gr
@@ -1442,10 +1560,19 @@ def cal_expGr_fft(q, Sq_or_Fq, rmin=0, rmax=100, rstep=0.01, is_Fq=False,
         return (None, None, None) if return_padding else (None, None)
 
 
-def cal_expGr_fft_from_Fq(q, Fq, rmin=0, rmax=100, rstep=0.01, pad_mode="zero",
-                           low_q_mode="anchor", extrapolate_type="linear"):
+def cal_expGr_fft_from_Fq(
+    q,
+    Fq,
+    rmin=0,
+    rmax=100,
+    rstep=0.01,
+    pad_mode="zero",
+    low_q_mode="anchor",
+    extrapolate_type="linear",
+):
     """
     [EN] Calculate G(r) directly from F(q) using IFFT.
+
          Same approach as cal_expGr_fft (anchor/linear low-q extrapolation, Nyquist check).
     [KR] F(q)로부터 직접 IFFT를 사용하여 G(r)을 계산합니다.
          cal_expGr_fft와 동일한 방식 (anchor/linear low-q 외삽, Nyquist 체크).
@@ -1466,8 +1593,7 @@ def cal_expGr_fft_from_Fq(q, Fq, rmin=0, rmax=100, rstep=0.01, pad_mode="zero",
             pad_Fq[:num_point] = (Fq[0] / q[0]) * q_low
         else:
             # Linear extrapolation (legacy method via scipy interp1d).
-            f_inter = interpolate.interp1d(q, Fq, fill_value="extrapolate",
-                                           kind=extrapolate_type)
+            f_inter = interpolate.interp1d(q, Fq, fill_value="extrapolate", kind=extrapolate_type)
             pad_Fq[:num_point] = f_inter(np.arange(num_point) * qstep)
 
     Fq_vals = np.append(pad_Fq, Fq)
@@ -1514,10 +1640,11 @@ def cal_expGr_fft_from_Fq(q, Fq, rmin=0, rmax=100, rstep=0.01, pad_mode="zero",
 def detect_header_lines(path, min_cols=2):
     """
     [EN] Automatically detect the number of header lines to skip.
+
     [KR] 데이터 파일에서 건너뛸 헤더(Header) 라인 수를 자동으로 감지합니다.
     """
     skip = 0
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
+    with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             stripped = line.strip()
             if not stripped:  # [EN] Skip empty lines / [KR] 빈 줄 무시
@@ -1531,7 +1658,8 @@ def detect_header_lines(path, min_cols=2):
                 skip += 1
                 continue
             try:
-                for p in parts[:min_cols]: float(p)  # [EN] Check if float / [KR] 실수형 변환 가능 여부 확인
+                for p in parts[:min_cols]:
+                    float(p)  # [EN] Check if float / [KR] 실수형 변환 가능 여부 확인
                 break
             except ValueError:
                 skip += 1
@@ -1542,6 +1670,7 @@ def detect_header_lines(path, min_cols=2):
 def load_qiq_file(path, min_cols=2, usecols=(0, 1)):
     """
     [EN] Load Q vs I(q) data from file using automatic header detection.
+
     [KR] 헤더 자동 감지 기능을 사용하여 파일에서 Q vs I(q) 데이터를 로드합니다.
     """
     skip = detect_header_lines(path, min_cols=min_cols)
@@ -1557,9 +1686,11 @@ def load_qiq_file(path, min_cols=2, usecols=(0, 1)):
 # [Added Section] Whittaker-Henderson Smoothing Functions (12/2025 Added)
 # =============================================================================
 
+
 def smooth_whittaker(y, lambda_=1600.0, order=2):
     """
     [EN] Whittaker-Henderson smoothing algorithm.
+
          It minimizes: sum((y - z)^2) + lambda * sum((delta^order z)^2)
     [KR] Whittaker-Henderson 스무딩 알고리즘입니다.
          데이터 충실도(원본과의 차이)와 부드러움(미분값의 크기) 사이의 균형을 맞춥니다.
@@ -1579,28 +1710,30 @@ def smooth_whittaker(y, lambda_=1600.0, order=2):
 
     try:
         DTD = make_dT_d(n, order)  # [EN] Create penalty matrix / [KR] 페널티 행렬 생성
-        A = sp.eye(n, format='csc') + lambda_ * DTD  # A = I + lambda * D'D
-        c, low = cho_factor(
-            A.toarray())  # [EN] Cholesky factorization / [KR] 촐레스키 분해
+        A = sp.eye(n, format="csc") + lambda_ * DTD  # A = I + lambda * D'D
+        c, low = cho_factor(A.toarray())  # [EN] Cholesky factorization / [KR] 촐레스키 분해
 
         # [EN] Solve linear system Ay = z
         # [KR] 선형 연립방정식 Ay = z 를 풀어서 스무딩된 값 z를 구함
         return cho_solve((c, low), y)
 
     except LinAlgError as e:
-        raise RuntimeError(f"Numerical error during smoothing: {e}. Consider lowering order or increasing lambda.")
+        raise RuntimeError(
+            f"Numerical error during smoothing: {e}. Consider lowering order or increasing lambda."
+        ) from e
     except Exception as e:
-        raise RuntimeError(f"Unexpected error during smoothing: {e}. Check your lambda and order values.")
+        raise RuntimeError(f"Unexpected error during smoothing: {e}. Check your lambda and order values.") from e
 
 
 def make_dT_d(n, d):
     """
     [EN] Constructs the penalty matrix (D.T * D) for Whittaker smoothing.
+
     [KR] 스무딩을 위한 차분 행렬의 곱(D.T * D)을 생성합니다.
     """
 
     def diff_matrix(k, n):
-        D = sp.eye(n, format='csc')
+        D = sp.eye(n, format="csc")
         for _ in range(k):
             D = D[1:] - D[:-1]  # [EN] Difference operator / [KR] 차분 연산자
         return D
@@ -1610,37 +1743,27 @@ def make_dT_d(n, d):
 
 
 def bandwidth_to_lambda(bandwidth, order):
-    """
-    Convert a Savitzky-Golay-like bandwidth to Whittaker lambda.
-    """
+    """Convert a Savitzky-Golay-like bandwidth to Whittaker lambda."""
     return (2 * factorial(order)) ** 2 / (bandwidth ** (2 * order))
 
 
 def smooth_like_savitzky_golay(y, bandwidth, order):
-    """
-    Whittaker smoothing configured to mimic Savitzky-Golay behavior.
-    """
+    """Whittaker smoothing configured to mimic Savitzky-Golay behavior."""
     lambda_ = bandwidth_to_lambda(bandwidth, order)
     return smooth_whittaker(y, lambda_, order)
 
 
 def noise_gain_to_lambda(gain, order):
-    """
-    Convert noise gain parameter to Whittaker lambda.
-    """
+    """Convert noise gain parameter to Whittaker lambda."""
     return (2 * factorial(order)) ** 2 / gain
 
 
 def smooth_with_noise_gain(y, gain=1e-4, order=2):
-    """
-    Whittaker smoothing using a noise gain parameter.
-    """
+    """Whittaker smoothing using a noise gain parameter."""
     lambda_ = noise_gain_to_lambda(gain, order)
     return smooth_whittaker(y, lambda_, order)
 
 
 def batch_smooth_whittaker(y_2d, lambda_=1600.0, order=2):
-    """
-    Apply Whittaker-Henderson smoothing to each row of a 2D array.
-    """
+    """Apply Whittaker-Henderson smoothing to each row of a 2D array."""
     return np.array([smooth_whittaker(row, lambda_, order) for row in y_2d])

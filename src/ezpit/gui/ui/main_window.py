@@ -2,6 +2,31 @@ import json  # JSON data handling - JSON 데이터 처리
 import os  # OS path and file handling - OS 경로 및 파일 처리
 import sys  # Needed to detect a PyInstaller bundle - PyInstaller 번들 감지용
 
+from PySide6.QtCore import QSettings, QSize, Qt
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QMenuBar,
+    QMessageBox,
+    QSizePolicy,
+    QSplitter,
+    QWidget,
+)
+
+from ezpit.gui.controller.graph_controller import (
+    add_files_to_list_widget,
+    load_selected_files,
+)
+
+from .control_panel import ControlPanel
+from .file_panel import FilePanel
+
 
 def resource_path(relative_path):
     """Return the absolute path to a bundled resource.
@@ -18,7 +43,7 @@ def resource_path(relative_path):
     """
     if hasattr(sys, "_MEIPASS"):
         # Running inside a PyInstaller bundle.
-        base_path = sys._MEIPASS
+        base_path = sys._MEIPASS  # noqa: SLF001
     else:
         # Running from source: ui/ -> project root.
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -26,22 +51,13 @@ def resource_path(relative_path):
 
 
 # Internal module imports - 내부 모듈 임포트
-from ezpit.gui.controller.graph_controller import add_files_to_list_widget, load_selected_files
-from .file_panel import FilePanel
-from .control_panel import ControlPanel
 
 # PySide6 components for UI - UI 구성을 위한 PySide6 컴포넌트
-from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QSplitter,
-    QLabel, QFileDialog, QMenuBar, QMenu, QHeaderView, QSizePolicy,
-    QMessageBox, QApplication
-)
-from PySide6.QtGui import QAction, QKeySequence, QShortcut, QIcon
-from PySide6.QtCore import Qt, QSize, QSettings
+
 
 # Read style.qss (No error if missing) - style.qss 읽기 (파일이 없어도 에러 안 나게 처리)
 try:
-    with open("style.qss", 'r', encoding='utf-8') as f:
+    with open("style.qss", encoding="utf-8") as f:
         config = f.read()
 except Exception:
     config = ""
@@ -164,7 +180,8 @@ LIGHT_QSS = """
                 border-radius: 2px;
             }
 
-            /* CheckBox Style Fix (Maintains color even when inactive) - 체크박스 스타일 수정 (비활성 시에도 색상 유지) */
+            /* CheckBox Style Fix (Maintains color even when inactive)
+               체크박스 스타일 수정 (비활성 시에도 색상 유지) */
             QCheckBox {
                 spacing: 5px;
                 color: #000000;
@@ -340,8 +357,7 @@ class PDFApp(QMainWindow):
     def __init__(self):
         super().__init__()
         # --- 아이콘 설정 코드 (번들 대응 경로 방식) ---
-        icon_path = resource_path(os.path.join("ui", "icons",
-                                               "EZPDF_logo_2x_transparent.png"))
+        icon_path = resource_path(os.path.join("ui", "icons", "EZPDF_logo_2x_transparent.png"))
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         # ----------------------------------------
@@ -393,9 +409,7 @@ class PDFApp(QMainWindow):
         menu_bar.setContentsMargins(0, 0, 0, 0)
 
         # 2D Graph Icon on menubar - 메뉴바의 2D 그래프 아이콘
-        graph_action = QAction(
-            QIcon(resource_path(os.path.join("ui", "icons", "graph2d.png"))),
-            "", self)
+        graph_action = QAction(QIcon(resource_path(os.path.join("ui", "icons", "graph2d.png"))), "", self)
         graph_action.setToolTip("Plot Selected File(s) (2D)")
         graph_action.triggered.connect(self.graph_files)
         menu_bar.addAction(graph_action)
@@ -449,7 +463,8 @@ class PDFApp(QMainWindow):
             if pw and pw.isVisible():
                 pw.apply_theme(self.is_dark_mode)
 
-        # Edge case: If active plot window exists but is not in the list - 특이 케이스: 활성 창이 리스트에 없는 경우 업데이트
+        # Edge case: If active plot window exists but is not in the list
+        # 특이 케이스: 활성 창이 리스트에 없는 경우 업데이트
         if self.plot_window and self.plot_window not in self.plot_windows:
             if self.plot_window.isVisible():
                 self.plot_window.apply_theme(self.is_dark_mode)
@@ -522,7 +537,8 @@ class PDFApp(QMainWindow):
         """
         QMessageBox.about(self, "About EZPDF", about_text)
 
-    # ---------------- Project Save/Open Logic (with Directory Info) - 프로젝트 저장/열기 (디렉토리 정보 포함) ----------------
+    # ---------------- Project Save/Open Logic (with Directory Info) ----------------
+    # 프로젝트 저장/열기 (디렉토리 정보 포함)
 
     def save_project(self):
         # Select project file path - 프로젝트 파일 경로 선택
@@ -551,13 +567,14 @@ class PDFApp(QMainWindow):
                 "basic": self.control_panel.get_basic_parameters(),
                 "pdf": self.control_panel.get_pdf_parameters(),
                 "cal": self.control_panel.get_cal_parameters(),
-                "compton": self.control_panel.get_compton_parameters()
+                "compton": self.control_panel.get_compton_parameters(),
             }
         except Exception as e:
             QMessageBox.critical(self, "Error Collecting Parameters", f"Failed to get parameters: {e}")
             return
 
-        # [NEW/FIXED] Extract directory information matching xPDFsuite style - [신규/수정] xPDFsuite 스타일의 디렉토리 정보 추출
+        # [NEW/FIXED] Extract directory information matching xPDFsuite style
+        # [신규/수정] xPDFsuite 스타일의 디렉토리 정보 추출
         # inputdir: Directory of the loaded files - 입력 데이터 디렉토리
         input_dir = os.path.abspath(os.path.dirname(file_list[0])).replace("\\", "/") if file_list else ""
 
@@ -580,12 +597,12 @@ class PDFApp(QMainWindow):
             "savedir": save_dir,  # Project save directory - 프로젝트 저장 디렉토리
             "backgroundfiledir": bg_full,  # Full path to background file - 배경 파일 전체 경로
             "loaded_files": file_list,  # List of loaded file paths - 로드된 파일 경로 리스트
-            "parameters": parameters  # All configuration parameters - 모든 설정 파라미터
+            "parameters": parameters,  # All configuration parameters - 모든 설정 파라미터
         }
 
         try:
             # Save project to JSON file - 프로젝트를 JSON 파일로 저장합니다.
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(project_data, f, indent=4)
             self.label.setText(f"Project saved to {os.path.basename(file_path)}")
         except Exception as e:
@@ -604,7 +621,7 @@ class PDFApp(QMainWindow):
         self._settings.sync()
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, encoding="utf-8") as f:
                 project_data = json.load(f)
         except Exception as e:
             QMessageBox.critical(self, "Open Error", f"Failed to read project file:\n{e}")
@@ -629,10 +646,14 @@ class PDFApp(QMainWindow):
         # Restore parameters to UI - 파라미터들을 UI에 복원합니다.
         params = project_data.get("parameters", {})
         try:
-            if "basic" in params: self.control_panel.set_basic_parameters(params["basic"])
-            if "pdf" in params: self.control_panel.set_pdf_parameters(params["pdf"])
-            if "cal" in params: self.control_panel.set_cal_parameters(params["cal"])
-            if "compton" in params: self.control_panel.set_compton_parameters(params["compton"])
+            if "basic" in params:
+                self.control_panel.set_basic_parameters(params["basic"])
+            if "pdf" in params:
+                self.control_panel.set_pdf_parameters(params["pdf"])
+            if "cal" in params:
+                self.control_panel.set_cal_parameters(params["cal"])
+            if "compton" in params:
+                self.control_panel.set_compton_parameters(params["compton"])
         except Exception as e:
             QMessageBox.warning(self, "Parameter Error", f"Failed to apply some parameters:\n{e}")
 
@@ -651,7 +672,8 @@ class PDFApp(QMainWindow):
     def select_files(self):
         # Select individual files - 개별 파일들을 선택합니다.
         file_filter = (
-            "All Supported Files (*.sq *.fq *.iq *.chi *.xy *.dat *.txt *.gr *.xyz *.calsq *.calfq *.caliq *.calgr *.compton);;"
+            "All Supported Files (*.sq *.fq *.iq *.chi *.xy *.dat *.txt "
+            "*.gr *.xyz *.calsq *.calfq *.caliq *.calgr *.compton);;"
             "All Files (*)"
         )
         files, _ = QFileDialog.getOpenFileNames(self, "Select Files", self._last_dir, file_filter)
@@ -669,7 +691,7 @@ class PDFApp(QMainWindow):
             source,
             self.loaded_files,
             is_folder=is_folder,
-            max_name_length=0
+            max_name_length=0,
         )
         try:
             # Resize columns to fit content - 가시성을 위해 헤더 열 조정
@@ -693,8 +715,10 @@ class PDFApp(QMainWindow):
             self.label.setText(f"Graphing {nsel} files in waterfall mode…")
 
         # Determine plotting window preference - 그래프 출력 창 환경 설정 확인
-        use_new = getattr(self.control_panel, 'new_window_checkbox',
-                          None) and self.control_panel.new_window_checkbox.isChecked()
+        use_new = (
+            getattr(self.control_panel, "new_window_checkbox", None)
+            and self.control_panel.new_window_checkbox.isChecked()
+        )
         ref = None if use_new else self.plot_window
 
         # Call controller to generate the plot window - 컨트롤러를 호출하여 그래프 창을 생성합니다.
@@ -703,7 +727,7 @@ class PDFApp(QMainWindow):
             label_widget=self.label,
             plot_window_ref=ref,
             control_panel=self.control_panel,
-            max_length_file_name=0
+            max_length_file_name=0,
         )
 
         if new_plot_window:

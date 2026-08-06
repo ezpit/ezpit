@@ -1,22 +1,43 @@
 # ui/control_panel.py
 import os
 import re
+
 import numpy as np
 
 # [중요] Qt 모듈 임포트
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QFormLayout, QTabWidget, QLineEdit,
-    QPushButton, QLabel, QHBoxLayout, QMessageBox,
-    QButtonGroup, QComboBox, QRadioButton, QFileDialog, QCheckBox, QStyle
-)
 from PySide6.QtGui import QDoubleValidator, QFont
-from .ui_helpers import add_slider_field, add_form_row
-from ezpit.gui.model.helpers import (preview_composition, extract_data, parse_composition,
-                                     composition_string_from_xyz)
-from ezpit.processing import reset_warning_history
-from ezpit.gui.controller.graph_controller import update_current_graph, calculate_compton
+from PySide6.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QStyle,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
+from ezpit.gui.controller.graph_controller import (
+    calculate_compton,
+    update_current_graph,
+)
+from ezpit.gui.model.helpers import (
+    composition_string_from_xyz,
+    extract_data,
+    parse_composition,
+    preview_composition,
+)
+from ezpit.processing import reset_warning_history
+
+from .ui_helpers import add_form_row, add_slider_field
 
 # Hint shown under the composition field. Kept in one place because the same
 # text is used by both the Basic and the Compton tab.
@@ -131,9 +152,7 @@ class ControlPanel(QWidget):
         self.background_edit.editingFinished.connect(self._on_background_editing_finished)
 
         icon = self.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon)
-        self.bg_browse_action = self.background_edit.addAction(
-            icon, QLineEdit.ActionPosition.TrailingPosition
-        )
+        self.bg_browse_action = self.background_edit.addAction(icon, QLineEdit.ActionPosition.TrailingPosition)
         self.bg_browse_action.setToolTip("Choose Background File")
         self.bg_browse_action.triggered.connect(self.select_background_file)
 
@@ -154,8 +173,7 @@ class ControlPanel(QWidget):
         self.background_enabled = False
 
         self.composition_input = QLineEdit()
-        self.composition_input.setPlaceholderText(
-            "Enter composition (e.g. C 1 O 2  or  Co38O119P1)")
+        self.composition_input.setPlaceholderText("Enter composition (e.g. C 1 O 2  or  Co38O119P1)")
         basic_layout.addRow("Composition:", self.composition_input)
 
         self.composition_example_label = QLabel(COMPOSITION_EXAMPLE_TEXT)
@@ -238,8 +256,10 @@ class ControlPanel(QWidget):
 
     def select_background_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Background File", "",
-            "Data Files (*.chi *.iq *.xy *.dat *.txt);;All files(*)"
+            self,
+            "Select Background File",
+            "",
+            "Data Files (*.chi *.iq *.xy *.dat *.txt);;All files(*)",
         )
         if not file_path:
             return
@@ -298,8 +318,7 @@ class ControlPanel(QWidget):
             return None
 
         if len(sample_q) != len(bkg_q):
-            return (f"Different number of points "
-                    f"(sample: {len(sample_q)}, background: {len(bkg_q)}).")
+            return f"Different number of points (sample: {len(sample_q)}, background: {len(bkg_q)})."
 
         max_abs_diff = float(np.max(np.abs(sample_q - bkg_q)))
         if not np.allclose(sample_q, bkg_q, rtol=1e-5, atol=1e-6):
@@ -338,7 +357,7 @@ class ControlPanel(QWidget):
 
         mismatch_msg = self._q_axis_mismatch(sample_path, bkg_path)
         if mismatch_msg is None:
-            return True   # q-axes match; nothing to warn about.
+            return True  # q-axes match; nothing to warn about.
 
         # This pair has now been reported, so send_update() should not warn
         # about it again.
@@ -350,13 +369,8 @@ class ControlPanel(QWidget):
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Warning)
         box.setWindowTitle("Background q-axis does not match")
-        box.setText(
-            mismatch_msg + "\n\n"
-            "Subtraction normally requires the same q values.\n"
-            "Use this background anyway?"
-        )
-        box.setStandardButtons(QMessageBox.StandardButton.Yes |
-                               QMessageBox.StandardButton.No)
+        box.setText(mismatch_msg + "\n\nSubtraction normally requires the same q values.\nUse this background anyway?")
+        box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         box.setDefaultButton(QMessageBox.StandardButton.No)
         return box.exec() == QMessageBox.StandardButton.Yes
 
@@ -392,9 +406,16 @@ class ControlPanel(QWidget):
         self.pdf_description.setStyleSheet("font-weight: normal; color: #444;")
         pdf_layout.addRow(self.pdf_description)
 
-        self.bg_slider, self.bg_input = add_slider_field("Background Scale:", 0.0, 1.0, 5, 0.00000, pdf_layout,
-                                                         factor=10,
-                                                         with_buttons=True)
+        self.bg_slider, self.bg_input = add_slider_field(
+            "Background Scale:",
+            0.0,
+            1.0,
+            5,
+            0.00000,
+            pdf_layout,
+            factor=10,
+            with_buttons=True,
+        )
 
         self.pdf_qstep_input = QLineEdit()
         self.pdf_qstep_input.setText("0.01")
@@ -412,8 +433,9 @@ class ControlPanel(QWidget):
 
         pdf_layout.addRow("q_step:", qstep_layout)
 
-        self.qmax_slider, self.qmax_input = add_slider_field("q_max:", 0.0, 30, 3, 30.000, pdf_layout,
-                                                             with_buttons=True)
+        self.qmax_slider, self.qmax_input = add_slider_field(
+            "q_max:", 0.0, 30, 3, 30.000, pdf_layout, with_buttons=True
+        )
         self.qmin_slider, self.qmin_input = add_slider_field("q_min:", 0.0, 2, 3, 0.000, pdf_layout, with_buttons=True)
 
         self.poly_order_slider, self.poly_order_input = add_slider_field(
@@ -464,8 +486,7 @@ class ControlPanel(QWidget):
         self.r_step_input = QLineEdit()
         pdf_layout.addRow("r_step:", self.r_step_input)
 
-        self.wh_smoothing_label = QLabel(
-            "Whittaker-Henderson (WH) smoothing at F(q)")
+        self.wh_smoothing_label = QLabel("Whittaker-Henderson (WH) smoothing at F(q)")
         self.wh_smoothing_label.setStyleSheet("font-weight: bold;")
         pdf_layout.addRow(self.wh_smoothing_label)
 
@@ -530,8 +551,8 @@ class ControlPanel(QWidget):
 
         # ⬇⬇⬇ [체크박스 위치 수정: 왼쪽 정렬] ⬇⬇⬇
         cb_layout = QHBoxLayout()
-        cb_layout.addWidget(self.new_window_checkbox) # 체크박스를 먼저 추가
-        cb_layout.addStretch()                        # 뒤에 여백(Stretch) 추가
+        cb_layout.addWidget(self.new_window_checkbox)  # 체크박스를 먼저 추가
+        cb_layout.addStretch()  # 뒤에 여백(Stretch) 추가
         # ⬆⬆⬆ [수정 완료] ⬆⬆⬆
 
         # 메인 레이아웃 최하단에 추가
@@ -555,9 +576,7 @@ class ControlPanel(QWidget):
         self.cal_qmax_slider, self.cal_qmax_input = add_slider_field(
             "q_max:", 0.0, 30, 3, 30.000, cal_layout, with_buttons=True
         )
-        self.cal_qmin_slider, self.cal_qmin_input = add_slider_field(
-            "q_min:", 0.0, 5, 3, 0.000, cal_layout
-        )
+        self.cal_qmin_slider, self.cal_qmin_input = add_slider_field("q_min:", 0.0, 5, 3, 0.000, cal_layout)
 
         self.cal_qmax_slider.valueChanged.connect(self.send_update)
         self.cal_qmin_slider.valueChanged.connect(self.send_update)
@@ -621,8 +640,7 @@ class ControlPanel(QWidget):
         compton_layout.addRow("Alpha:", self.alpha_dropdown)
 
         self.compton_composition_input = QLineEdit()
-        self.compton_composition_input.setPlaceholderText(
-            "Enter composition (e.g. Co 2 O 2 P 1  or  Co2O2P)")
+        self.compton_composition_input.setPlaceholderText("Enter composition (e.g. Co 2 O 2 P 1  or  Co2O2P)")
         self.compton_composition_input.setText("")
         compton_layout.addRow("Composition:", self.compton_composition_input)
 
@@ -635,13 +653,12 @@ class ControlPanel(QWidget):
         compton_layout.addRow("", self.compton_composition_example_label)
 
         # Live preview for the Compton-tab composition field (its own label).
-        self.compton_composition_input.textChanged.connect(
-            self._update_compton_composition_preview)
+        self.compton_composition_input.textChanged.connect(self._update_compton_composition_preview)
 
         self.compton_qmax_slider, self.compton_qmax_input = add_slider_field(
-            "q_max:", 0.0, 40, 3, 30.000, compton_layout, with_buttons=True)
-        self.compton_qmin_slider, self.compton_qmin_input = add_slider_field(
-            "q_min:", 0.0, 5, 3, 0.000, compton_layout)
+            "q_max:", 0.0, 40, 3, 30.000, compton_layout, with_buttons=True
+        )
+        self.compton_qmin_slider, self.compton_qmin_input = add_slider_field("q_min:", 0.0, 5, 3, 0.000, compton_layout)
 
         self.compton_qmax_slider.valueChanged.connect(self.send_update)
         self.compton_qmin_slider.valueChanged.connect(self.send_update)
@@ -699,17 +716,19 @@ class ControlPanel(QWidget):
                     QMessageBox.warning(
                         self,
                         "Ions in composition",
-                        "The composition contains ions ({0}).\n\n"
+                        f"The composition contains ions ({shown}).\n\n"
                         "Compton scattering cannot use ions \u2014 please enter "
                         "neutral element symbols only (e.g. 'Fe' not 'Fe2+', "
-                        "'O' not 'O2-').".format(shown))
+                        "'O' not 'O2-').",
+                    )
                     return
                 calculate_compton(self)
             except Exception as e:
                 QMessageBox.critical(
                     self,
                     "Compton Calculation Error",
-                    f"An error occurred while calculating Compton scattering:\n{str(e)}")
+                    f"An error occurred while calculating Compton scattering:\n{str(e)}",
+                )
 
         calculate_btn.clicked.connect(run_compton_calculation)
 
@@ -730,14 +749,16 @@ class ControlPanel(QWidget):
             "poly_order": self.poly_order_input.text(),
             "lambda": self.lambda_fq_input.text(),
             "order": self.order_input.text(),
-            "wh_enabled": True
+            "wh_enabled": True,
         }
 
     def _apply_composition_preview(self, line_edit, label):
-        """Shared logic: read `line_edit`, update `label` with a live,
+        """Shared logic: read `line_edit`, update `label` with a live,.
+
         human-readable interpretation. Valid compositions are shown in grey with
         full element names; unknown elements are shown in red. An empty field
-        restores the original example hint."""
+        restores the original example hint.
+        """
         text = line_edit.text() if line_edit is not None else ""
 
         if text is None or text.strip() == "":
@@ -753,17 +774,16 @@ class ControlPanel(QWidget):
             label.setStyleSheet("color: #666; font-weight: normal;")
             return
 
-        if result['ok']:
-            label.setText("\u2192 " + result['message'])
+        if result["ok"]:
+            label.setText("\u2192 " + result["message"])
             label.setStyleSheet("color: #666; font-weight: normal;")
         else:
-            label.setText("\u26a0 " + result['message'])
+            label.setText("\u26a0 " + result["message"])
             label.setStyleSheet("color: #c0392b; font-weight: normal;")
 
     def _update_composition_preview(self, text=None):
         """Preview for the Basic-tab composition field."""
-        self._apply_composition_preview(self.composition_input,
-                                        self.composition_example_label)
+        self._apply_composition_preview(self.composition_input, self.composition_example_label)
 
     def _update_compton_composition_preview(self, text=None):
         """Preview for the Compton-tab composition field.
@@ -776,22 +796,24 @@ class ControlPanel(QWidget):
         if ions:
             shown = ", ".join(ions[:5]) + (" ..." if len(ions) > 5 else "")
             label = self.compton_composition_example_label
-            label.setText("\u26a0 Compton cannot use ions \u2014 use neutral atoms "
-                          "only (e.g. 'Fe' not 'Fe2+'). Found: " + shown)
+            label.setText(
+                "\u26a0 Compton cannot use ions \u2014 use neutral atoms only (e.g. 'Fe' not 'Fe2+'). Found: " + shown
+            )
             label.setStyleSheet("color: #c0392b; font-weight: normal;")
             return
-        self._apply_composition_preview(self.compton_composition_input,
-                                        self.compton_composition_example_label)
+        self._apply_composition_preview(self.compton_composition_input, self.compton_composition_example_label)
 
     @staticmethod
     def _find_ion_symbols(text):
-        """Return the ionic species (e.g. 'Fe2+', 'O2-') found in a composition
+        """Return the ionic species (e.g. 'Fe2+', 'O2-') found in a composition.
+
         string. Neutral compositions contain no charge signs, so this is empty
-        for them."""
+        for them.
+        """
         if not text:
             return []
         # Element symbol + optional oxidation number + charge sign.
-        ions = re.findall(r'[A-Z][a-z]?\d*[+-]', text)
+        ions = re.findall(r"[A-Z][a-z]?\d*[+-]", text)
         # De-duplicate while preserving order.
         seen = set()
         unique = []
@@ -810,18 +832,21 @@ class ControlPanel(QWidget):
 
     def _warn_if_compton_composition_has_ions(self):
         """Show a warning if the Compton composition contains ionic species.
-        Compton scattering is defined for neutral atoms only."""
+
+        Compton scattering is defined for neutral atoms only.
+        """
         ions = self._find_ion_symbols(self.compton_composition_input.text())
         if not ions:
             return
         QMessageBox.warning(
             self,
             "Ions in composition",
-            "The composition contains ionic species: {0}.\n\n"
+            "The composition contains ionic species: {}.\n\n"
             "Compton scattering is defined for neutral atoms only, so ions "
             "cannot be used here. Please enter neutral element symbols "
             "(e.g. 'Fe' instead of 'Fe2+', 'O' instead of 'O2-') for the "
-            "Compton calculation.".format(", ".join(ions)))
+            "Compton calculation.".format(", ".join(ions)),
+        )
 
     def _selected_xyz_path(self):
         """Return the path of the single selected .xyz file, or None.
@@ -914,7 +939,8 @@ class ControlPanel(QWidget):
             "The composition differs from the selected .xyz file.\n\n"
             f"File:  {os.path.basename(xyz_path)}  →  {xyz_comp}\n"
             f"Entered:  {field_text}\n\n"
-            "Calculate from the .xyz file or from the composition you entered?")
+            "Calculate from the .xyz file or from the composition you entered?"
+        )
         from_file_btn = box.addButton("From .xyz file", QMessageBox.ButtonRole.AcceptRole)
         from_input_btn = box.addButton("From entered composition", QMessageBox.ButtonRole.AcceptRole)
         cancel_btn = box.addButton(QMessageBox.StandardButton.Cancel)
@@ -942,7 +968,7 @@ class ControlPanel(QWidget):
         else:
             data_format = "q_nmn"
 
-        background_path = getattr(self, 'background_path', None)
+        background_path = getattr(self, "background_path", None)
 
         comp_text = (self.composition_input.text() or "").strip() or "C 1 O 2"
 
@@ -955,7 +981,7 @@ class ControlPanel(QWidget):
             "composition": comp_text,
             "rmin": self.r_min_input.text(),
             "rmax": self.r_max_input.text(),
-            "rstep": self.r_step_input.text()
+            "rstep": self.r_step_input.text(),
         }
 
     def get_cal_parameters(self):
@@ -978,7 +1004,7 @@ class ControlPanel(QWidget):
             "composition": self.compton_composition_input.text(),
             "qmin": str(self.compton_qmin_slider.value() / 1000),
             "qmax": str(self.compton_qmax_slider.value() / 1000),
-            "qstep": self.compton_qstep_input.text()
+            "qstep": self.compton_qstep_input.text(),
         }
 
     def send_update(self):
@@ -1001,8 +1027,7 @@ class ControlPanel(QWidget):
         if not self.background_enabled or not self.background_path:
             return
         try:
-            sample_path = self._path_from_item(items[0] if isinstance(
-                items, (list, tuple)) else items)
+            sample_path = self._path_from_item(items[0] if isinstance(items, (list, tuple)) else items)
         except Exception:
             return
         if not sample_path or not os.path.isfile(sample_path):
@@ -1012,7 +1037,7 @@ class ControlPanel(QWidget):
         if not hasattr(self, "_bkg_warned_pairs"):
             self._bkg_warned_pairs = set()
         if pair in self._bkg_warned_pairs:
-            return          # already warned about this combination
+            return  # already warned about this combination
         self._bkg_warned_pairs.add(pair)
 
         mismatch = self._q_axis_mismatch(sample_path, self.background_path)

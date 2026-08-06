@@ -1,9 +1,10 @@
-from collections import Counter
-import numpy as np
 import os
+from collections import Counter
 
+import numpy as np
 
 # helpers gathered from EZPIT
+
 
 def parse_composition(composition):
     """
@@ -42,7 +43,6 @@ def parse_composition(composition):
       - Whitespace anywhere is ignored.
       - A repeated element is summed ('CoOCo' --> {'Co': 2, 'O': 1}).
     """
-
     if composition is None or composition.strip() == "":
         raise ValueError("The composition field must not be empty")
 
@@ -59,7 +59,7 @@ def parse_composition(composition):
         if not ch.isupper():
             raise ValueError(
                 f'Cannot read "{ch}" — expected an element symbol starting '
-                f'with a capital letter (e.g. Co 38 O 119 P 1 or Co38O119P)'
+                f"with a capital letter (e.g. Co 38 O 119 P 1 or Co38O119P)"
             )
 
         # Read the symbol: uppercase letter + optional one lowercase letter.
@@ -76,9 +76,7 @@ def parse_composition(composition):
         while i < length and (compact[i].isdigit() or compact[i] == "."):
             if compact[i] == ".":
                 if seen_dot:
-                    raise ValueError(
-                        f"'{element}': count has more than one decimal point"
-                    )
+                    raise ValueError(f"'{element}': count has more than one decimal point")
                 seen_dot = True
             digits += compact[i]
             i += 1
@@ -89,13 +87,9 @@ def parse_composition(composition):
             try:
                 quantity = float(digits)
             except ValueError:
-                raise ValueError(
-                    f"'{element}': '{digits}' is not a valid number"
-                )
+                raise ValueError(f"'{element}': '{digits}' is not a valid number") from None
             if quantity <= 0:
-                raise ValueError(
-                    f"'{element}': count must be a positive number (got {digits})"
-                )
+                raise ValueError(f"'{element}': count must be a positive number (got {digits})")
             # Keep whole numbers as int so that existing integer-based code
             # (and the preview text) is unchanged for ordinary compositions.
             if float(quantity).is_integer():
@@ -104,9 +98,7 @@ def parse_composition(composition):
         composition_dict[element] += quantity
 
     if not composition_dict:
-        raise ValueError(
-            f'Invalid composition string "{composition}": no element found'
-        )
+        raise ValueError(f'Invalid composition string "{composition}": no element found')
 
     return composition_dict
 
@@ -114,30 +106,100 @@ def parse_composition(composition):
 # Element symbol -> full name. Used to disambiguate easily-confused symbols
 # (e.g. 'C' carbon vs 'Co' cobalt) in the Composition preview label.
 ELEMENT_FULL_NAMES = {
-    'H': 'Hydrogen', 'He': 'Helium', 'Li': 'Lithium', 'Be': 'Beryllium',
-    'B': 'Boron', 'C': 'Carbon', 'N': 'Nitrogen', 'O': 'Oxygen',
-    'F': 'Fluorine', 'Ne': 'Neon', 'Na': 'Sodium', 'Mg': 'Magnesium',
-    'Al': 'Aluminium', 'Si': 'Silicon', 'P': 'Phosphorus', 'S': 'Sulfur',
-    'Cl': 'Chlorine', 'Ar': 'Argon', 'K': 'Potassium', 'Ca': 'Calcium',
-    'Sc': 'Scandium', 'Ti': 'Titanium', 'V': 'Vanadium', 'Cr': 'Chromium',
-    'Mn': 'Manganese', 'Fe': 'Iron', 'Co': 'Cobalt', 'Ni': 'Nickel',
-    'Cu': 'Copper', 'Zn': 'Zinc', 'Ga': 'Gallium', 'Ge': 'Germanium',
-    'As': 'Arsenic', 'Se': 'Selenium', 'Br': 'Bromine', 'Kr': 'Krypton',
-    'Rb': 'Rubidium', 'Sr': 'Strontium', 'Y': 'Yttrium', 'Zr': 'Zirconium',
-    'Nb': 'Niobium', 'Mo': 'Molybdenum', 'Tc': 'Technetium', 'Ru': 'Ruthenium',
-    'Rh': 'Rhodium', 'Pd': 'Palladium', 'Ag': 'Silver', 'Cd': 'Cadmium',
-    'In': 'Indium', 'Sn': 'Tin', 'Sb': 'Antimony', 'Te': 'Tellurium',
-    'I': 'Iodine', 'Xe': 'Xenon', 'Cs': 'Caesium', 'Ba': 'Barium',
-    'La': 'Lanthanum', 'Ce': 'Cerium', 'Pr': 'Praseodymium', 'Nd': 'Neodymium',
-    'Pm': 'Promethium', 'Sm': 'Samarium', 'Eu': 'Europium', 'Gd': 'Gadolinium',
-    'Tb': 'Terbium', 'Dy': 'Dysprosium', 'Ho': 'Holmium', 'Er': 'Erbium',
-    'Tm': 'Thulium', 'Yb': 'Ytterbium', 'Lu': 'Lutetium', 'Hf': 'Hafnium',
-    'Ta': 'Tantalum', 'W': 'Tungsten', 'Re': 'Rhenium', 'Os': 'Osmium',
-    'Ir': 'Iridium', 'Pt': 'Platinum', 'Au': 'Gold', 'Hg': 'Mercury',
-    'Tl': 'Thallium', 'Pb': 'Lead', 'Bi': 'Bismuth', 'Po': 'Polonium',
-    'At': 'Astatine', 'Rn': 'Radon', 'Fr': 'Francium', 'Ra': 'Radium',
-    'Ac': 'Actinium', 'Th': 'Thorium', 'Pa': 'Protactinium', 'U': 'Uranium',
-    'Np': 'Neptunium', 'Pu': 'Plutonium',
+    "H": "Hydrogen",
+    "He": "Helium",
+    "Li": "Lithium",
+    "Be": "Beryllium",
+    "B": "Boron",
+    "C": "Carbon",
+    "N": "Nitrogen",
+    "O": "Oxygen",
+    "F": "Fluorine",
+    "Ne": "Neon",
+    "Na": "Sodium",
+    "Mg": "Magnesium",
+    "Al": "Aluminium",
+    "Si": "Silicon",
+    "P": "Phosphorus",
+    "S": "Sulfur",
+    "Cl": "Chlorine",
+    "Ar": "Argon",
+    "K": "Potassium",
+    "Ca": "Calcium",
+    "Sc": "Scandium",
+    "Ti": "Titanium",
+    "V": "Vanadium",
+    "Cr": "Chromium",
+    "Mn": "Manganese",
+    "Fe": "Iron",
+    "Co": "Cobalt",
+    "Ni": "Nickel",
+    "Cu": "Copper",
+    "Zn": "Zinc",
+    "Ga": "Gallium",
+    "Ge": "Germanium",
+    "As": "Arsenic",
+    "Se": "Selenium",
+    "Br": "Bromine",
+    "Kr": "Krypton",
+    "Rb": "Rubidium",
+    "Sr": "Strontium",
+    "Y": "Yttrium",
+    "Zr": "Zirconium",
+    "Nb": "Niobium",
+    "Mo": "Molybdenum",
+    "Tc": "Technetium",
+    "Ru": "Ruthenium",
+    "Rh": "Rhodium",
+    "Pd": "Palladium",
+    "Ag": "Silver",
+    "Cd": "Cadmium",
+    "In": "Indium",
+    "Sn": "Tin",
+    "Sb": "Antimony",
+    "Te": "Tellurium",
+    "I": "Iodine",
+    "Xe": "Xenon",
+    "Cs": "Caesium",
+    "Ba": "Barium",
+    "La": "Lanthanum",
+    "Ce": "Cerium",
+    "Pr": "Praseodymium",
+    "Nd": "Neodymium",
+    "Pm": "Promethium",
+    "Sm": "Samarium",
+    "Eu": "Europium",
+    "Gd": "Gadolinium",
+    "Tb": "Terbium",
+    "Dy": "Dysprosium",
+    "Ho": "Holmium",
+    "Er": "Erbium",
+    "Tm": "Thulium",
+    "Yb": "Ytterbium",
+    "Lu": "Lutetium",
+    "Hf": "Hafnium",
+    "Ta": "Tantalum",
+    "W": "Tungsten",
+    "Re": "Rhenium",
+    "Os": "Osmium",
+    "Ir": "Iridium",
+    "Pt": "Platinum",
+    "Au": "Gold",
+    "Hg": "Mercury",
+    "Tl": "Thallium",
+    "Pb": "Lead",
+    "Bi": "Bismuth",
+    "Po": "Polonium",
+    "At": "Astatine",
+    "Rn": "Radon",
+    "Fr": "Francium",
+    "Ra": "Radium",
+    "Ac": "Actinium",
+    "Th": "Thorium",
+    "Pa": "Protactinium",
+    "U": "Uranium",
+    "Np": "Neptunium",
+    "Pu": "Plutonium",
 }
 
 # Cache of valid element symbols loaded from the form-factor database.
@@ -145,12 +207,15 @@ _VALID_ELEMENTS_CACHE = None
 
 
 def _load_valid_elements():
-    """Load the set of element symbols that exist in the form-factor database
-    (ezpit.elem_tables.AFF_ELEMENTS). Cached after first load."""
+    """Load the set of element symbols that exist in the form-factor database.
+
+    (ezpit.elem_tables.AFF_ELEMENTS). Cached after first load.
+    """
     global _VALID_ELEMENTS_CACHE
     if _VALID_ELEMENTS_CACHE is not None:
         return _VALID_ELEMENTS_CACHE
     from ezpit.elem_tables import AFF_ELEMENTS
+
     _VALID_ELEMENTS_CACHE = set(AFF_ELEMENTS)
     return _VALID_ELEMENTS_CACHE
 
@@ -176,7 +241,7 @@ def preview_composition(text):
         the preview is still produced.
     """
     if text is None or text.strip() == "":
-        return {'ok': True, 'message': "", 'parsed': {}}
+        return {"ok": True, "message": "", "parsed": {}}
 
     # Reuse parse_composition so the preview accepts exactly the same styles as
     # the actual processing does (spaced or compact, with 1 optionally omitted).
@@ -185,7 +250,7 @@ def preview_composition(text):
     try:
         parsed_counter = parse_composition(text)
     except ValueError as exc:
-        return {'ok': False, 'message': str(exc), 'parsed': {}}
+        return {"ok": False, "message": str(exc), "parsed": {}}
 
     valid = _load_valid_elements()  # may be None -> skip existence check
     parsed = {}
@@ -197,10 +262,9 @@ def preview_composition(text):
         parsed[el] = parsed.get(el, 0) + n
 
     if errors:
-        return {'ok': False, 'message': "  •  ".join(errors), 'parsed': parsed}
+        return {"ok": False, "message": "  •  ".join(errors), "parsed": parsed}
 
-    parts = [f"{el} ({ELEMENT_FULL_NAMES.get(el, '?')}) {n:g}"
-             for el, n in parsed.items()]
+    parts = [f"{el} ({ELEMENT_FULL_NAMES.get(el, '?')}) {n:g}" for el, n in parsed.items()]
     total = sum(parsed.values())
     is_fractional = any(not float(n).is_integer() for n in parsed.values())
     if is_fractional:
@@ -208,15 +272,16 @@ def preview_composition(text):
         message = " ,   ".join(parts) + f"      (total {total:g})"
     else:
         message = " ,   ".join(parts) + f"      ({int(total)} atoms)"
-    return {'ok': True, 'message': message, 'parsed': parsed}
+    return {"ok": True, "message": message, "parsed": parsed}
 
 
 def convert_atom_names(composition: dict) -> list[str]:
     """
-    if composition = {'Co': 3, 'O': 4, 'P': 1},
+    If composition = {'Co': 3, 'O': 4, 'P': 1},.
+
     atom_names = losa.convert_atom_names(composition)
     print('atom_names = ', atom_names)
-    --> atom_names = ['Co', 'Co', 'Co', 'O', 'O', 'O', 'O', 'P']
+    --> atom_names = ['Co', 'Co', 'Co', 'O', 'O', 'O', 'O', 'P'].
 
     Only whole-number compositions can be expanded this way. For a composition
     that may contain fractional amounts, use composition_weights() instead.
@@ -271,13 +336,14 @@ def composition_weights(composition: dict):
 
 def group_atoms(atom_names):
     """
-    Get unique atom names, their counts, and the index of atom in the unique
+    Get unique atom names, their counts, and the index of atom in the unique.
+
     name list. Results will be used by other functions.
             # if composition = {'Co':2, 'O':1, 'P':1},
             counter =  Counter({'Co': 2, 'O': 1, 'P': 1})
             atom_unique_names =  ['Co', 'O', 'P']
             atom_counts =  [2 1 1]  # "2" is for 'Co', "1" is for 'O', "1" is for 'P'
-            atom_indices  =  [0 0 1 2] #
+            atom_indices  =  [0 0 1 2] #.
     """
     counter = Counter(atom_names)
     atom_uni_names = list(counter.keys())
@@ -297,12 +363,12 @@ def detect_data_start(path):
     Used in dataloader.py and calculator.py.
     """
     ext = os.path.splitext(path)[1].lower()
-    is_xyz_format = ext == '.xyz'
+    is_xyz_format = ext == ".xyz"
 
     # Read as latin-1 so any byte decodes without error. Reduction tools often
     # write non-UTF-8 characters in the header (e.g. the 'µ' in 'µm'), which
     # would otherwise crash a strict UTF-8 read.
-    with open(path, 'r', encoding='latin-1') as f:
+    with open(path, encoding="latin-1") as f:
         for i, line in enumerate(f):
             parts = line.strip().split()
 
@@ -339,15 +405,15 @@ def extract_data(path):
     """
     try:
         # latin-1 decodes every byte without error; we only need the numbers.
-        with open(path, 'r', encoding='latin-1') as f:
+        with open(path, encoding="latin-1") as f:
             lines = f.readlines()
 
         x_vals, y_vals = [], []
         for line in lines:
             s = line.strip()
-            if not s or s[0] in ('#', '!', ';', '%'):
+            if not s or s[0] in ("#", "!", ";", "%"):
                 continue
-            parts = s.replace(',', ' ').split()
+            parts = s.replace(",", " ").split()
             if len(parts) < 2:
                 continue
             try:
@@ -371,13 +437,16 @@ _AFF_VALID_SYMBOLS = None
 
 
 def _get_aff_valid_symbols():
-    """Accepted species symbols (elements and ions) from the aff form-factor
+    """Accepted species symbols (elements and ions) from the aff form-factor.
+
     table, e.g. ['H', ..., 'Fe2+', 'O2-', ...]. Cached after first read.
-    Returns None if the table can't be loaded."""
+    Returns None if the table can't be loaded.
+    """
     global _AFF_VALID_SYMBOLS
     if _AFF_VALID_SYMBOLS is None:
         try:
             from ezpit.elem_tables import AFF_ELEMENTS
+
             _AFF_VALID_SYMBOLS = [str(s).strip() for s in AFF_ELEMENTS]
         except Exception:
             _AFF_VALID_SYMBOLS = []
@@ -385,11 +454,13 @@ def _get_aff_valid_symbols():
 
 
 def _load_atom_name_positions_legacy(file_path):
-    """Positional fallback parser: skips header via detect_data_start and takes
+    """Positional fallback parser: skips header via detect_data_start and takes.
+
     the last three columns as x, y, z. Used only when the form-factor table is
-    unavailable."""
+    unavailable.
+    """
     start_line = detect_data_start(file_path)
-    with open(file_path, 'r') as f:
+    with open(file_path) as f:
         lines = f.readlines()[start_line:]
     atom_names = []
     atom_positions = []
@@ -407,7 +478,8 @@ def _load_atom_name_positions_legacy(file_path):
 
 def load_atom_name_positions(file_path, valid_symbols=None):
     """
-    Load atom names and (x, y, z) positions from an .xyz file, using the atomic
+    Load atom names and (x, y, z) positions from an .xyz file, using the atomic.
+
     form-factor table as the reference for what counts as an atom.
 
     A line is treated as an atom only when:
@@ -433,7 +505,7 @@ def load_atom_name_positions(file_path, valid_symbols=None):
         the file is taken and everything else is skipped.
 
     Parameters
-    ==========
+    ----------
     file_path : str
         Path to the .xyz file.
     valid_symbols : iterable of str, optional
@@ -441,7 +513,7 @@ def load_atom_name_positions(file_path, valid_symbols=None):
         form-factor table automatically.
 
     Returns
-    =======
+    -------
     tuple:
         - atom_names: List[str] – canonical species symbols
         - atom_positions: np.ndarray – (n_atoms, 3) float array
@@ -480,7 +552,7 @@ def load_atom_name_positions(file_path, valid_symbols=None):
             return None
         return symbol, xyz
 
-    with open(file_path, 'r') as f:
+    with open(file_path) as f:
         lines = f.readlines()
 
     # --- Preferred path: standard .xyz with a count line ---------------------
@@ -497,11 +569,11 @@ def load_atom_name_positions(file_path, valid_symbols=None):
         block = []
         k = i + 2  # skip the count line (i) and the comment line (i + 1)
         while k < n_lines and len(block) < n_atoms:
-            if lines[k].strip() == "":   # tolerate blank lines within the block
+            if lines[k].strip() == "":  # tolerate blank lines within the block
                 k += 1
                 continue
             a = atom_of(lines[k])
-            if a is None:                # not a clean atom where one was expected
+            if a is None:  # not a clean atom where one was expected
                 break
             block.append(a)
             k += 1
@@ -526,9 +598,9 @@ def load_atom_name_positions(file_path, valid_symbols=None):
 
     if not atom_positions:
         raise ValueError(
-            "No atom coordinates found in '{0}'. Expected lines of the form "
+            f"No atom coordinates found in '{file_path}'. Expected lines of the form "
             "'Element x y z' where the symbol is present in the atomic "
-            "form-factor table.".format(file_path)
+            "form-factor table."
         )
 
     return atom_names, np.array(atom_positions, dtype=float)
@@ -551,7 +623,7 @@ def composition_string_from_xyz(file_path):
 
     unique_names, counts, _ = group_atoms(atom_names)
     parts = []
-    for name, count in zip(unique_names, counts):
+    for name, count in zip(unique_names, counts, strict=False):
         parts.append(f"{name}{int(count)}")
     return "".join(parts) if parts else None
 
@@ -563,16 +635,19 @@ def get_q_range(qmin, qmax, len_data):
 def trim_and_pad(x, y, qmin, qmax, q_step=0.01):
     """
     Trims x and y to the range [qmin, qmax] and zero-pads if needed.
+
     Returns new x and y arrays on a uniform grid with spacing q_step.
 
-    Parameters:
+    Parameters
+    ----------
         x (np.ndarray): Input x-axis data.
         y (np.ndarray): Input y-axis data.
         qmin (float): Lower bound for trimming/padding.
         qmax (float): Upper bound for trimming/padding.
         q_step (float): Spacing between points in the output x array.
 
-    Returns:
+    Returns
+    -------
         (x_new, y_new): Trimmed and padded arrays with uniform spacing.
     """
     x = np.array(x)
@@ -590,24 +665,26 @@ def trim_and_pad(x, y, qmin, qmax, q_step=0.01):
 
 def trim_data_exact(x, y, qmin, qmax):
     """
-        ################# 설명 부분 정리해야 됨   12/12/2025
+        ################# 설명 부분 정리해야 됨   12/12/2025.
+
     원본 데이터의 값(Value)과 간격(Step)을 전혀 건드리지 않고,
     오직 qmin ~ qmax 사이의 데이터만 그대로 추출합니다.
 
     Trims x and y to the range [qmin, qmax] and zero-pads if needed.
     Returns new x and y arrays on a uniform grid with spacing q_step.
 
-    Parameters:
+    Parameters
+    ----------
         x (np.ndarray): Input x-axis data.
         y (np.ndarray): Input y-axis data.
         qmin (float): Lower bound for trimming/padding.
         qmax (float): Upper bound for trimming/padding.
         q_step (float): Spacing between points in the output x array.
 
-    Returns:
+    Returns
+    -------
         (x_new, y_new): Trimmed and padded arrays with uniform spacing.
     """
-
     x = np.asarray(x)
     y = np.asarray(y)
 
@@ -617,6 +694,3 @@ def trim_data_exact(x, y, qmin, qmax):
     # 2. 슬라이싱: 해당 위치의 x, y 값만 원본 그대로 가져옴
     # (새로운 grid를 만들거나 interp를 하지 않음)
     return x[mask], y[mask]
-
-
-

@@ -2,8 +2,10 @@
 
 import pyqtgraph as pg
 
+
 def make_pen(color_tuple, width=2):
     return pg.mkPen(color=color_tuple, width=width)
+
 
 def setup_plot(plot_widget, x_label, y_label):
     plot_widget.clear()
@@ -13,12 +15,14 @@ def setup_plot(plot_widget, x_label, y_label):
     # ⬆⬆⬆ 여기까지 ⬆⬆⬆
     plot_widget.showGrid(x=False, y=False, alpha=0.3)
 
+
 def plot_curve(plot_widget, x, y, pen, visible=True):
     if x is not None and y is not None:
         curve = plot_widget.plot(x, y, pen=pen)
         curve.setVisible(visible)
         return curve
     return None
+
 
 def update_visibility(layout, checkboxes, plots, parent_widget):
     for i, plot in enumerate(plots):

@@ -1,8 +1,14 @@
 # ui/ui_helpers.py
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QSlider, QLineEdit, QHBoxLayout, QLabel, QPushButton, QFormLayout, QSizePolicy
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
 )
-from PySide6.QtCore import Qt, QSize
 
 
 def get_short_name(filename, max_len):
@@ -19,8 +25,17 @@ def update_file_list_numbering(file_list):
         item.setText(0, str(i + 1))
 
 
-def add_slider_field(label, min_val, max_val, decimals, default_val, layout, factor=2.0, with_buttons=False):
-    scale = 10 ** decimals
+def add_slider_field(
+    label,
+    min_val,
+    max_val,
+    decimals,
+    default_val,
+    layout,
+    factor=2.0,
+    with_buttons=False,
+):
+    scale = 10**decimals
     current_max = [max_val]
 
     def to_slider_val(real_val):
@@ -108,4 +123,3 @@ def add_form_row(layout: QFormLayout, label_text: str, input_field: QLineEdit) -
     label = QLabel(label_text)
     layout.addRow(label, input_field)
     return label
-

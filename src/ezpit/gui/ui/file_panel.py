@@ -4,25 +4,31 @@
 #          click "File Name" header → cycle  ▲(asc) → ▼(desc) → load order
 #          Sort key: embedded timestamp in filename (YYYYMMDD-HHMMSS), fallback to alpha.
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTreeWidget, QPushButton, QAbstractItemView,
-    QMessageBox, QHeaderView, QTreeWidgetItem
-)
-from PySide6.QtCore import Qt, QTimer, QEvent
-
-from .ui_helpers import update_file_list_numbering
-from ezpit.gui.controller.graph_controller import load_selected_files
-from ezpit.gui.model.helpers import composition_string_from_xyz
-
 import os
 import re
 
+from PySide6.QtCore import QEvent, Qt, QTimer
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QHeaderView,
+    QMessageBox,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
+from ezpit.gui.controller.graph_controller import load_selected_files
+from ezpit.gui.model.helpers import composition_string_from_xyz
+
+from .ui_helpers import update_file_list_numbering
 
 # ---------------------------------------------------------------------------
 # Regex: capture YYYYMMDD-HHMMSS (or YYYYMMDD_HHMMSS) embedded in a filename
 # e.g.  "..._20260331-012503_..."  →  sortable key "20260331012503"
 # ---------------------------------------------------------------------------
-_TS_RE = re.compile(r'(\d{8})[_\-](\d{6})')
+_TS_RE = re.compile(r"(\d{8})[_\-](\d{6})")
 
 
 def _filename_sort_key(path: str) -> str:
@@ -30,7 +36,7 @@ def _filename_sort_key(path: str) -> str:
     name = os.path.basename(path)
     m = _TS_RE.search(name)
     if m:
-        return m.group(1) + m.group(2)   # "YYYYMMDDHHMMSS" → lexicographic == chronological
+        return m.group(1) + m.group(2)  # "YYYYMMDDHHMMSS" → lexicographic == chronological
     return name.lower()
 
 
@@ -75,10 +81,10 @@ class _NoAutoScrollTree(QTreeWidget):
 
     def eventFilter(self, obj, ev):
         if obj is self and ev.type() in (
-                QEvent.Type.LayoutRequest,
-                QEvent.Type.UpdateRequest,
-                QEvent.Type.PolishRequest,
-                QEvent.Type.ShowToParent,
+            QEvent.Type.LayoutRequest,
+            QEvent.Type.UpdateRequest,
+            QEvent.Type.PolishRequest,
+            QEvent.Type.ShowToParent,
         ):
             self._fix_index_col()
         return super().eventFilter(obj, ev)
@@ -98,7 +104,7 @@ class FilePanel(QWidget):
         # _sort_col : None (load order) | 1 (File Name column)
         # _sort_dir : 'asc' | 'desc'   (only meaningful when _sort_col == 1)
         self._sort_col = None
-        self._sort_dir = 'asc'
+        self._sort_dir = "asc"
 
         # Original insertion order (paths), used to restore "Load Order"
         self._load_order = []
@@ -120,7 +126,7 @@ class FilePanel(QWidget):
         header = self.file_list.header()
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionsClickable(True)
-        header.setSortIndicatorShown(False)   # shown only while a sort is active
+        header.setSortIndicatorShown(False)  # shown only while a sort is active
         header.sectionClicked.connect(self._on_header_clicked)
 
         # Model signals
@@ -176,22 +182,23 @@ class FilePanel(QWidget):
 
     def _on_header_clicked(self, col: int):
         """
-        col 0  (#)         → always restore load order
-        col 1  (File Name) → cycle:  none → ▲ asc → ▼ desc → none (load order)
+        Col 0  (#)         → always restore load order.
+
+        col 1  (File Name) → cycle:  none → ▲ asc → ▼ desc → none (load order).
         """
         if col == 0:
             self._sort_col = None
-            self._sort_dir = 'asc'
+            self._sort_dir = "asc"
         elif col == 1:
             if self._sort_col != 1:
                 self._sort_col = 1
-                self._sort_dir = 'asc'
-            elif self._sort_dir == 'asc':
-                self._sort_dir = 'desc'
+                self._sort_dir = "asc"
+            elif self._sort_dir == "asc":
+                self._sort_dir = "desc"
             else:
                 # Third click → back to load order
                 self._sort_col = None
-                self._sort_dir = 'asc'
+                self._sort_dir = "asc"
 
         self._apply_sort()
         self._update_sort_indicator()
@@ -201,9 +208,7 @@ class FilePanel(QWidget):
         header = self.file_list.header()
         if self._sort_col == 1:
             header.setSortIndicatorShown(True)
-            qt_order = (Qt.SortOrder.AscendingOrder
-                        if self._sort_dir == 'asc'
-                        else Qt.SortOrder.DescendingOrder)
+            qt_order = Qt.SortOrder.AscendingOrder if self._sort_dir == "asc" else Qt.SortOrder.DescendingOrder
             header.setSortIndicator(1, qt_order)
         else:
             header.setSortIndicatorShown(False)
@@ -220,12 +225,12 @@ class FilePanel(QWidget):
             item = self.file_list.topLevelItem(i)
             path = item.data(0, Qt.ItemDataRole.UserRole)
             name = item.text(1)
-            tip  = item.toolTip(1)
+            tip = item.toolTip(1)
             items_data.append((path, name, tip))
 
         if self._sort_col == 1:
             # Sort by embedded filename timestamp (fallback: alpha)
-            reverse = (self._sort_dir == 'desc')
+            reverse = self._sort_dir == "desc"
             items_data.sort(key=lambda x: _filename_sort_key(x[0]), reverse=reverse)
         else:
             # Restore load order
@@ -262,8 +267,8 @@ class FilePanel(QWidget):
                 if p:
                     path_to_new_item[p] = it
 
-            for pw in getattr(self.main_window, 'plot_windows', []):
-                old_items = getattr(pw, 'associated_items', None)
+            for pw in getattr(self.main_window, "plot_windows", []):
+                old_items = getattr(pw, "associated_items", None)
                 if not old_items:
                     continue
                 new_items = []
@@ -295,7 +300,7 @@ class FilePanel(QWidget):
                     self._load_order.append(path)
 
     def _apply_index_width(self):
-        QTimer.singleShot(0, self.file_list._fix_index_col)
+        QTimer.singleShot(0, self.file_list._fix_index_col)  # noqa: SLF001
 
     # ------------------------------------------------------------------
     # Existing behaviour (unchanged)
@@ -307,7 +312,7 @@ class FilePanel(QWidget):
         item = args[0]
 
         use_new = False
-        if self.control_panel and hasattr(self.control_panel, 'new_window_checkbox'):
+        if self.control_panel and hasattr(self.control_panel, "new_window_checkbox"):
             use_new = self.control_panel.new_window_checkbox.isChecked()
 
         ref = None if use_new else self.main_window.plot_window
@@ -317,7 +322,7 @@ class FilePanel(QWidget):
             label_widget=self.label_widget,
             plot_window_ref=ref,
             control_panel=self.control_panel,
-            max_length_file_name=0
+            max_length_file_name=0,
         )
 
         if new_plot_window:
@@ -329,8 +334,7 @@ class FilePanel(QWidget):
         self.main_window.current_path = [item]
 
     def _autofill_compton_composition(self):
-        """When exactly one .xyz file is selected, fill the Compton tab's
-        composition field with the elements counted from that file.
+        """Fill the Compton tab's composition field from a single selected .xyz file.
 
         Multi-selection is ignored so we never clobber the field during a
         drag-select. The user can still edit the field afterward; the Compton
@@ -356,8 +360,8 @@ class FilePanel(QWidget):
             cp.compton_composition_input.setText(comp)
             # Remember which file/composition this came from so the Compton
             # Calculate button can still prompt after the file is deselected.
-            cp._compton_xyz_path = path
-            cp._compton_xyz_comp = comp
+            cp._compton_xyz_path = path  # noqa: SLF001
+            cp._compton_xyz_comp = comp  # noqa: SLF001
 
     def delete_selected_files(self):
         selected_items = self.file_list.selectedItems()
@@ -365,9 +369,10 @@ class FilePanel(QWidget):
             return
 
         confirm = QMessageBox.question(
-            self, "Confirm Deletion",
+            self,
+            "Confirm Deletion",
             f"Are you sure you want to delete {len(selected_items)} file(s) from the list?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
@@ -427,16 +432,18 @@ class FilePanel(QWidget):
                 files.append(p)
 
         def _dedup(seq):
-            seen = set(); out = []
+            seen = set()
+            out = []
             for x in seq:
                 if x not in seen:
-                    out.append(x); seen.add(x)
+                    out.append(x)
+                    seen.add(x)
             return out
 
         folders = _dedup(folders)
-        files   = _dedup(files)
+        files = _dedup(files)
 
-        if self.main_window is not None and hasattr(self.main_window, 'populate_file_list'):
+        if self.main_window is not None and hasattr(self.main_window, "populate_file_list"):
             for d in folders:
                 self.main_window.populate_file_list(d, is_folder=True)
             if files:
@@ -482,4 +489,3 @@ class FilePanel(QWidget):
 
     def get_selected_file_paths(self):
         return self.file_list.selectedItems()
-

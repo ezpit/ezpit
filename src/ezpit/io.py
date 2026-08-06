@@ -1,11 +1,13 @@
 import os
 from collections import Counter
+
 import numpy as np
 
 
 def parse_composition(composition):
     """
-    [EN] Parse a composition string from the Control Panel and turn it into a
+    [EN] Parse a composition string from the Control Panel and turn it into a.
+
          dictionary (EZPDF_GUI_3 helpers.py behaviour).
          Both spaced and compact styles are accepted, and a quantity of 1 may be
          omitted. All of the following give {'Co': 38, 'O': 119, 'P': 1}:
@@ -30,7 +32,8 @@ def parse_composition(composition):
     Args:
         composition (str or dict): [EN] Composition string or dict / [KR] 조성 문자열 또는 딕셔너리
 
-    Returns:
+    Returns
+    -------
         collections.Counter / dict: {element: count}  (count may be float if fractional)
     """
     # [EN] Accept a dict directly (already parsed) / [KR] 딕셔너리 입력은 그대로 반환
@@ -54,8 +57,8 @@ def parse_composition(composition):
         # [KR] 원소 기호는 대문자로 시작해야 함
         if not ch.isupper():
             raise ValueError(
-                'Cannot read "{0}" — expected an element symbol starting '
-                'with a capital letter (e.g. Co 38 O 119 P 1 or Co38O119P)'.format(ch)
+                f'Cannot read "{ch}" — expected an element symbol starting '
+                "with a capital letter (e.g. Co 38 O 119 P 1 or Co38O119P)"
             )
 
         # [EN] Read symbol: uppercase + optional one lowercase.
@@ -83,16 +86,16 @@ def parse_composition(composition):
         while j < length and compact[j].isdigit():
             ion_digits += compact[j]
             j += 1
-        if j < length and (compact[j] == '+' or compact[j] == '-'):
+        if j < length and (compact[j] == "+" or compact[j] == "-"):
             # [EN] It's an ion: build the full species name (element + digits + sign).
             # [KR] 이온이다: 전체 화학종 이름 구성 (원소 + 숫자 + 부호).
             ion_species = element + ion_digits + compact[j]
             raise ValueError(
-                "Composition contains an ion: '{0}' (in \"{1}\"). Ionic species such "
+                f"Composition contains an ion: '{ion_species}' (in \"{composition}\"). Ionic species such "
                 "as 'Fe2+' or 'O2-' cannot be used in the composition field — use "
-                "the neutral element instead (e.g. '{2}' not '{0}'). Ions are only "
+                f"the neutral element instead (e.g. '{element}' not '{ion_species}'). Ions are only "
                 "supported in the .xyz structure file, not in the "
-                "composition.".format(ion_species, composition, element)
+                "composition."
             )
 
         # [EN] Read quantity: digits with at most one decimal point, or nothing (=1).
@@ -102,9 +105,7 @@ def parse_composition(composition):
         while i < length and (compact[i].isdigit() or compact[i] == "."):
             if compact[i] == ".":
                 if seen_dot:
-                    raise ValueError(
-                        "'{0}': count has more than one decimal point".format(element)
-                    )
+                    raise ValueError(f"'{element}': count has more than one decimal point")
                 seen_dot = True
             digits += compact[i]
             i += 1
@@ -115,11 +116,9 @@ def parse_composition(composition):
             try:
                 quantity = float(digits)
             except ValueError:
-                raise ValueError("'{0}': '{1}' is not a valid number".format(element, digits))
+                raise ValueError(f"'{element}': '{digits}' is not a valid number") from None
             if quantity <= 0:
-                raise ValueError(
-                    "'{0}': count must be a positive number (got {1})".format(element, digits)
-                )
+                raise ValueError(f"'{element}': count must be a positive number (got {digits})")
             # [EN] Keep whole numbers as int (existing integer code unchanged).
             # [KR] 정수는 int로 유지 (기존 정수 기반 코드 그대로 동작)
             if float(quantity).is_integer():
@@ -128,9 +127,7 @@ def parse_composition(composition):
         composition_dict[element] += quantity
 
     if not composition_dict:
-        raise ValueError(
-            'Invalid composition string "{0}": no element found'.format(composition)
-        )
+        raise ValueError(f'Invalid composition string "{composition}": no element found')
 
     return composition_dict
 
@@ -138,6 +135,7 @@ def parse_composition(composition):
 def composition_weights(composition):
     """
     [EN] Turn a composition dict into unique element names and their amounts.
+
          Fraction-safe counterpart of convert_atom_names() + group_atoms().
          Rather than listing one entry per atom, it keeps one entry per unique
          element together with its amount (weight), which is all the form-factor
@@ -160,7 +158,8 @@ def composition_weights(composition):
         composition (dict or str): [EN] Composition (parsed via parse_composition if str)
                                    [KR] 조성 (문자열이면 parse_composition으로 파싱)
 
-    Returns:
+    Returns
+    -------
         (names, weights):
             names (list[str])      : [EN] Unique element names / [KR] 고유 원소 이름
             weights (numpy.ndarray): [EN] Their amounts as floats / [KR] 각 원소의 양 (실수)
@@ -184,6 +183,7 @@ def composition_weights(composition):
 def load_atom_name_positions(file_path, valid_symbols):
     """
     [EN] Load atom names and (x, y, z) positions from an .xyz file.
+
          Header lines are skipped AUTOMATICALLY and robustly — any number of them,
          in any style. A line is treated as an atom ONLY when:
              (1) it has at least 4 whitespace-separated tokens, AND
@@ -223,11 +223,12 @@ def load_atom_name_positions(file_path, valid_symbols):
             (element/ion list from the form-factor table). REQUIRED.
             [KR] 허용 화학종 기호(form-factor 테이블의 원소/이온 목록). 필수.
 
-    Returns:
+    Returns
+    -------
         atom_names (list[str])        : [EN] Species symbols / [KR] 화학종 기호 리스트
         atom_positions (numpy.ndarray): [EN] (N, 3) float array / [KR] (N, 3) 실수 배열
     """
-    with open(file_path, 'r') as f:
+    with open(file_path) as f:
         lines = f.readlines()
 
     # [EN] Accepted-symbol set from the form-factor table (may contain ions).
@@ -275,9 +276,9 @@ def load_atom_name_positions(file_path, valid_symbols):
 
     if not atom_positions:
         raise ValueError(
-            "No atom coordinates found in '{0}'. Expected lines of the form "
+            f"No atom coordinates found in '{file_path}'. Expected lines of the form "
             "'Element x y z' (e.g. 'C 1.23 4.56 7.89'), where the symbol is in "
-            "your form-factor table (valid_symbols).".format(file_path)
+            "your form-factor table (valid_symbols)."
         )
 
     atom_positions = np.array(atom_positions, dtype=float)
@@ -293,51 +294,54 @@ def load_atom_name_positions(file_path, valid_symbols):
     #      명시적으로 알립니다.
     # ------------------------------------------------------------------
     total = len(atom_names)
-    ion_names = [s for s in atom_names if ('+' in s) or ('-' in s)]
+    ion_names = [s for s in atom_names if ("+" in s) or ("-" in s)]
     neutral_count = total - len(ion_names)
 
-    fname = file_path.replace('\\', '/').split('/')[-1]
+    fname = file_path.replace("\\", "/").split("/")[-1]
     if ion_names:
         unique_ions = sorted(set(ion_names))
-        print("[load_atom_name_positions] '{0}': {1} atoms read "
-              "({2} neutral, {3} ion) — IONS DETECTED: {4}".format(
-                  fname, total, neutral_count, len(ion_names),
-                  ", ".join(unique_ions)))
+        print(
+            "[load_atom_name_positions] '{}': {} atoms read ({} neutral, {} ion) — IONS DETECTED: {}".format(
+                fname, total, neutral_count, len(ion_names), ", ".join(unique_ions)
+            )
+        )
     else:
-        print("[load_atom_name_positions] '{0}': {1} atoms read "
-              "(all neutral, no ions).".format(fname, total))
+        print(f"[load_atom_name_positions] '{fname}': {total} atoms read (all neutral, no ions).")
 
     return atom_names, atom_positions
 
 
 def load_atom_names(file_path):
     """
-    database_atom_names = losa.load_atom_names(compton_aff_element_file)
+    database_atom_names = losa.load_atom_names(compton_aff_element_file).
+
     print('database_atom_names = ', database_atom_names)
     print all atom names in compton_element_only.txt
-    database_atom_names =  ['H', 'He', 'Li', 'Be',,,,,,,,,,,'U']
+    database_atom_names =  ['H', 'He', 'Li', 'Be',,,,,,,,,,,'U'].
     """
-    with open(file_path, 'r') as f:
-        atom_list = [line.strip() for line in f.readlines() if line.strip() != '']
+    with open(file_path) as f:
+        atom_list = [line.strip() for line in f.readlines() if line.strip() != ""]
     return atom_list
 
 
 def load_scattering_factors(file_path):
     """
-    database_scat_factors = losa.load_scattering_factors(compton_aff_parm_file)
+    database_scat_factors = losa.load_scattering_factors(compton_aff_parm_file).
+
     print('database_scat_factors = ', database_scat_factors)
-    print all parameters for compton scattering form factor in compton_parameter_only.txt
+    print all parameters for compton scattering form factor in compton_parameter_only.txt.
     """
-    with open(file_path, 'r') as f:
+    with open(file_path) as f:
         data = []
         for line in f:
-            data.append([float(val) for val in line.strip().split('\t')])
+            data.append([float(val) for val in line.strip().split("\t")])
     return np.array(data)
 
 
 def convert_atom_names(composition):
     """
-    [EN] Convert a whole-number composition (dict OR string) into a full list of
+    [EN] Convert a whole-number composition (dict OR string) into a full list of.
+
          atom names, one entry per atom. Used by xyz-model / theoretical paths.
          For a composition that may contain FRACTIONAL amounts, use
          composition_weights() instead (fractions cannot be expanded into atoms).
@@ -355,18 +359,18 @@ def convert_atom_names(composition):
     for el, count in comp.items():
         if not float(count).is_integer():
             raise ValueError(
-                "'{0}': fractional amount {1} cannot be expanded into individual "
+                f"'{el}': fractional amount {count} cannot be expanded into individual "
                 "atoms. Use composition_weights() instead, or scale every element "
-                "by the same factor (e.g. Li0.2Co0.36 -> Li20Co36).".format(el, count)
+                "by the same factor (e.g. Li0.2Co0.36 -> Li20Co36)."
             )
 
     return [el for el, count in comp.items() for _ in range(int(count))]
 
 
-def get_scattering_factors(atom_names, database_atom_names,
-                           database_scat_factors):
+def get_scattering_factors(atom_names, database_atom_names, database_scat_factors):
     """
-    find Compton scattering parameters according to the given composition
+    Find Compton scattering parameters according to the given composition.
+
     print('compton_scattering_factors ====== ', Compton_scattering_factors)
     # --> if composition is composition = {'Co':2, 'O':1, 'P':1}, get Compton scattering parameters for Co, O, P
     num_atom = len(atom_indices)
@@ -374,7 +378,7 @@ def get_scattering_factors(atom_names, database_atom_names,
     num_fact = len(compton_scattering_factors)
     # num_fact =  3, i.e. # how many different atoms in composition
     print('atomic_number = ', atomic_number)  # show atomic number of each atom in periodic table
-    # --> if composition is composition = {'Co':2, 'O':1, 'P':1},  atomic_number =  [27, 8, 15]
+    # --> if composition is composition = {'Co':2, 'O':1, 'P':1},  atomic_number =  [27, 8, 15].
     """
     scat_factors = []
     for atom in atom_names:
@@ -382,39 +386,38 @@ def get_scattering_factors(atom_names, database_atom_names,
             idx = database_atom_names.index(atom)
             scat_factors.append(database_scat_factors[idx])
         else:
-            raise ValueError("There is no atom {0} in database".format(atom))
+            raise ValueError(f"There is no atom {atom} in database")
     return np.asarray(scat_factors)
 
 
-#### added 12/18/2023######################################
-def get_compton_scattering_factors(atom_names, database_atom_names,
-                           database_scat_factors):
-    """
-    add compton scattering factor with give experimental q
-    """
-
+# added 12/18/2023######################################
+def get_compton_scattering_factors(atom_names, database_atom_names, database_scat_factors):
+    """Add compton scattering factor with give experimental q."""
     scat_factors = []
     atomic_number = []
     for atom in atom_names:
         if atom in database_atom_names:
             idx = database_atom_names.index(atom)
             scat_factors.append(database_scat_factors[idx])
-            atomic_number.append(idx+1)
+            atomic_number.append(idx + 1)
         else:
-            raise ValueError("There is no atom {0} in database".format(atom))
+            raise ValueError(f"There is no atom {atom} in database")
     return np.asarray(scat_factors), atomic_number
-#### added 12/18/2023######################################
+
+
+# added 12/18/2023######################################
 
 
 def group_atoms(atom_names):
     """
-    Get unique atom names, their counts, and the index of atom in the unique
+    Get unique atom names, their counts, and the index of atom in the unique.
+
     name list. Results will be used by other functions.
             # if composition = {'Co':2, 'O':1, 'P':1},
             counter =  Counter({'Co': 2, 'O': 1, 'P': 1})
             atom_unique_names =  ['Co', 'O', 'P']
             atom_counts =  [2 1 1]  # "2" is for 'Co', "1" is for 'O', "1" is for 'P'
-            atom_indices  =  [0 0 1 2] #
+            atom_indices  =  [0 0 1 2] #.
     """
     counter = Counter(atom_names)
     atom_uni_names = list(counter.keys())
@@ -425,8 +428,10 @@ def group_atoms(atom_names):
 
 def make_folder(file_path):
     """
-    Create a folder for saving file if the folder does not exist. This is a
+    Create a folder for saving file if the folder does not exist. This is a.
+
     supplementary function for savers.
+
     Parameters
     ----------
     file_path : str
@@ -436,8 +441,8 @@ def make_folder(file_path):
     if not os.path.exists(file_base):
         try:
             os.makedirs(file_base, exist_ok=True)
-        except OSError:
-            raise ValueError("Can't create the folder: {}".format(file_base))
+        except OSError as e:
+            raise ValueError(f"Can't create the folder: {file_base}") from e
 
 
 def save_txt(filename, q_Iq):

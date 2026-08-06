@@ -1,27 +1,38 @@
 # controller/graph_controller.py
 
-from PySide6.QtWidgets import QTreeWidgetItem, QMessageBox
-from PySide6.QtCore import Qt
 import os
-import numpy as np
 
+import numpy as np
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QMessageBox, QTreeWidgetItem
+
+from ezpit.gui.model.dataloader import get_graph_data
+from ezpit.gui.model.processing import get_compton_values
 from ezpit.gui.ui.ui_helpers import get_short_name
 from ezpit.gui.ui.viewer import PlotWindow
-from ezpit.gui.model.dataloader import get_graph_data, get_config_data
-from ezpit.gui.model.processing import get_compton_values
-from ezpit.gui.model.saver import write_compton_file
-from .utils import apply_optimal_pdf_settings
 
 VALID_EXTENSIONS = [
-    ".chi", ".gr", ".sq", ".fq", ".iq", ".xy", ".dat", ".txt", ".xyz",
-    ".caliq", ".calsq", ".calfq", ".calgr", ".compton"
+    ".chi",
+    ".gr",
+    ".sq",
+    ".fq",
+    ".iq",
+    ".xy",
+    ".dat",
+    ".txt",
+    ".xyz",
+    ".caliq",
+    ".calsq",
+    ".calfq",
+    ".calgr",
+    ".compton",
 ]
 
 
 def load_selected_files(selected_items, label_widget, plot_window_ref, control_panel, max_length_file_name):
     if not selected_items:
         label_widget.setText("No file selected.")
-        if plot_window_ref and hasattr(plot_window_ref, 'close'):
+        if plot_window_ref and hasattr(plot_window_ref, "close"):
             plot_window_ref.close()
         return None
 
@@ -34,26 +45,46 @@ def load_selected_files(selected_items, label_widget, plot_window_ref, control_p
             ext = extensions[0]
             short_name = get_short_name(os.path.basename(path), max_length_file_name)
 
-            xs, ys, bkg_x, bkg_y, raw_x, raw_y, list_Sq, Fq_smoothed, mean_sq_fi, sq_mean_fi, r_smoothed, G_smoothed = get_graph_data(
-                path, ext, control_panel
-            )
+            (
+                xs,
+                ys,
+                bkg_x,
+                bkg_y,
+                raw_x,
+                raw_y,
+                list_Sq,
+                Fq_smoothed,
+                mean_sq_fi,
+                sq_mean_fi,
+                r_smoothed,
+                G_smoothed,
+            ) = get_graph_data(path, ext, control_panel)
 
             if plot_window_ref is None or not plot_window_ref.isVisible():
                 plot_window_ref = PlotWindow()
                 plot_window_ref.show()
 
             plot_window_ref.plot_data(
-                xs, ys, bkg_x, bkg_y, raw_x, raw_y,
-                list_Sq, Fq_smoothed, mean_sq_fi, sq_mean_fi,
-                r_smoothed, G_smoothed, os.path.basename(path)
+                xs,
+                ys,
+                bkg_x,
+                bkg_y,
+                raw_x,
+                raw_y,
+                list_Sq,
+                Fq_smoothed,
+                mean_sq_fi,
+                sq_mean_fi,
+                r_smoothed,
+                G_smoothed,
+                os.path.basename(path),
             )
 
             # A Compton curve only has an I(q)-type panel; S(q), F(q) and G(r)
             # would just be empty, so show the I(q) panel alone. The user can
             # still tick the other boxes if they want them.
-            if ext == '.compton':
-                plot_window_ref.enable_graphs(enable_iq=True, enable_sq=False,
-                                              enable_fq=False, enable_gr=False)
+            if ext == ".compton":
+                plot_window_ref.enable_graphs(enable_iq=True, enable_sq=False, enable_fq=False, enable_gr=False)
 
             label_widget.setText(f"Showing plot for {short_name}")
 
@@ -61,7 +92,7 @@ def load_selected_files(selected_items, label_widget, plot_window_ref, control_p
             legend_names = [os.path.basename(p) for p in paths]
             xs_list, ys_list = [], []
 
-            for path, ext in zip(paths, extensions):
+            for path, ext in zip(paths, extensions, strict=False):
                 xs, ys, *_ = get_graph_data(path, ext, control_panel, multiple_graphs=True)
                 xs_list.append(xs)
                 ys_list.append(ys)
@@ -77,30 +108,31 @@ def load_selected_files(selected_items, label_widget, plot_window_ref, control_p
 
     except Exception as e:
         label_widget.setText(f"Failed to load: {e}")
-        if plot_window_ref and hasattr(plot_window_ref, 'close'):
+        if plot_window_ref and hasattr(plot_window_ref, "close"):
             plot_window_ref.close()
         return None
 
 
 def get_valid_files(folder, extensions=VALID_EXTENSIONS):
     return sorted(
-        [
-            os.path.join(folder, f)
-            for f in os.listdir(folder)
-            if any(f.lower().endswith(ext) for ext in extensions)
-        ],
+        [os.path.join(folder, f) for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in extensions)],
         key=lambda f: os.path.getmtime(f),
-        reverse=True
+        reverse=True,
     )
 
 
-def add_files_to_list_widget(file_list_widget, label_widget, source, loaded_files, is_folder=True, max_name_length=25):
+def add_files_to_list_widget(
+    file_list_widget,
+    label_widget,
+    source,
+    loaded_files,
+    is_folder=True,
+    max_name_length=25,
+):
     if is_folder:
         valid_file_paths = get_valid_files(source)
     else:
-        valid_file_paths = [
-            f for f in source if any(f.lower().endswith(ext) for ext in VALID_EXTENSIONS)
-        ]
+        valid_file_paths = [f for f in source if any(f.lower().endswith(ext) for ext in VALID_EXTENSIONS)]
 
     valid_file_paths.sort(key=lambda f: os.path.getmtime(f), reverse=True)
 
@@ -126,13 +158,18 @@ def _capture_plot_ranges(plot_window):
     if plot_window is None:
         return ranges
 
-    for plot in getattr(plot_window, 'plots', []):
+    for plot in getattr(plot_window, "plots", []):
         try:
             vb = plot.getViewBox()
             x_range, y_range = vb.viewRange()
             vals = np.array([x_range[0], x_range[1], y_range[0], y_range[1]], dtype=float)
             if np.all(np.isfinite(vals)):
-                ranges.append(((float(x_range[0]), float(x_range[1])), (float(y_range[0]), float(y_range[1]))))
+                ranges.append(
+                    (
+                        (float(x_range[0]), float(x_range[1])),
+                        (float(y_range[0]), float(y_range[1])),
+                    )
+                )
             else:
                 ranges.append(None)
         except Exception:
@@ -150,7 +187,7 @@ def _restore_plot_ranges(plot_window, ranges, restore_y=True):
     if plot_window is None or not ranges:
         return
 
-    for plot, saved in zip(getattr(plot_window, 'plots', []), ranges):
+    for plot, saved in zip(getattr(plot_window, "plots", []), ranges, strict=False):
         if not saved:
             continue
         try:
@@ -182,7 +219,7 @@ def _restore_plot_ranges(plot_window, ranges, restore_y=True):
 
 def update_current_graph(selected_items, control_panel, plot_window):
     # 그래프 잠금 상태면 업데이트하지 않음
-    if plot_window is not None and hasattr(plot_window, 'is_locked') and plot_window.is_locked():
+    if plot_window is not None and hasattr(plot_window, "is_locked") and plot_window.is_locked():
         return
 
     try:
@@ -207,7 +244,7 @@ def update_current_graph(selected_items, control_panel, plot_window):
         if not paths:
             return
 
-        saved_ranges = _capture_plot_ranges(plot_window)
+        _capture_plot_ranges(plot_window)
 
         if len(paths) == 1:
             path = paths[0]
@@ -215,21 +252,41 @@ def update_current_graph(selected_items, control_panel, plot_window):
                 return
 
             extension = os.path.splitext(path)[1].lower()
-            xs, ys, bkg_x, bkg_y, raw_x, raw_y, list_Sq, Fq_smoothed, mean_sq_fi, sq_mean_fi, r_smoothed, G_smoothed = get_graph_data(
-                path, extension, control_panel
-            )
+            (
+                xs,
+                ys,
+                bkg_x,
+                bkg_y,
+                raw_x,
+                raw_y,
+                list_Sq,
+                Fq_smoothed,
+                mean_sq_fi,
+                sq_mean_fi,
+                r_smoothed,
+                G_smoothed,
+            ) = get_graph_data(path, extension, control_panel)
 
             plot_window.plot_data(
-                xs, ys, bkg_x, bkg_y, raw_x, raw_y,
-                list_Sq, Fq_smoothed, mean_sq_fi, sq_mean_fi,
-                r_smoothed, G_smoothed, os.path.basename(path),
-                bring_front=False
+                xs,
+                ys,
+                bkg_x,
+                bkg_y,
+                raw_x,
+                raw_y,
+                list_Sq,
+                Fq_smoothed,
+                mean_sq_fi,
+                sq_mean_fi,
+                r_smoothed,
+                G_smoothed,
+                os.path.basename(path),
+                bring_front=False,
             )
 
             # Compton curves only populate the I(q) panel (see load_selected_files).
-            if extension == '.compton':
-                plot_window.enable_graphs(enable_iq=True, enable_sq=False,
-                                          enable_fq=False, enable_gr=False)
+            if extension == ".compton":
+                plot_window.enable_graphs(enable_iq=True, enable_sq=False, enable_fq=False, enable_gr=False)
 
         else:
             list_xs = []
@@ -245,8 +302,7 @@ def update_current_graph(selected_items, control_panel, plot_window):
                 list_ys.append(ys)
 
             if list_xs and list_ys:
-                plot_window.plot_multiple(list_xs, list_ys,
-                                          titles=legend_names, bring_front=False)
+                plot_window.plot_multiple(list_xs, list_ys, titles=legend_names, bring_front=False)
 
         # Do NOT restore ranges after a parameter-driven update.
         # plot_data() already calls _autorange_and_fix_x0() for every subplot,
@@ -265,7 +321,8 @@ def update_current_graph(selected_items, control_panel, plot_window):
 
 
 def calculate_compton(control_panel):
-    """Compute the Compton scattering curve and plot it directly on the
+    """Compute the Compton scattering curve and plot it directly on the.
+
     EZPDF Plot window's I(q) panel.
 
     Previously this opened a save dialog and wrote a .compton file. Now
@@ -292,8 +349,9 @@ def calculate_compton(control_panel):
     # present; otherwise reuse the current EZPDF Plot window, creating one
     # when none is open/visible.
     plot_window = getattr(main_window, "plot_window", None) if main_window else None
-    use_new = bool(getattr(control_panel, "new_window_checkbox", None)
-                   and control_panel.new_window_checkbox.isChecked())
+    use_new = bool(
+        getattr(control_panel, "new_window_checkbox", None) and control_panel.new_window_checkbox.isChecked()
+    )
 
     if use_new or plot_window is None or not plot_window.isVisible():
         plot_window = PlotWindow()
@@ -302,12 +360,8 @@ def calculate_compton(control_panel):
     composition = control_panel.get_compton_parameters().get("composition", "").strip()
     title = f"Compton ({composition})" if composition else "Compton"
 
-    plot_window.plot_data(
-        xs, ys, None, None, None, None,
-        None, None, None, None, None, None, title
-    )
-    plot_window.enable_graphs(enable_iq=True, enable_sq=False,
-                              enable_fq=False, enable_gr=False)
+    plot_window.plot_data(xs, ys, None, None, None, None, None, None, None, None, None, None, title)
+    plot_window.enable_graphs(enable_iq=True, enable_sq=False, enable_fq=False, enable_gr=False)
 
     # Flag this window as showing a Compton curve. plot_data()/plot_multiple()
     # reset this to False, so it stays True only until the next file is drawn.

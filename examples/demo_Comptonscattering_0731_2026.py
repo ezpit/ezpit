@@ -5,15 +5,16 @@
 # [KR] 경로 설정: 'examples'의 상위 폴더(EZPDF_code_version)를 sys.path에 추가하여
 #      실행 위치와 무관하게 'losa', 'proc' 패키지를 import할 수 있게 합니다.
 # ----------------------------------------------------------------------------------
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import matplotlib.pyplot as plt  # [EN] Library for plotting graphs / [KR] 그래프를 그리기 위한 라이브러리
+
 import losa.loadersaver as losa  # [EN] Custom module for loading/saving data / [KR] 데이터 로드/저장용 사용자 정의 모듈
-import proc.processing as proc   # [EN] Custom module for scientific calculations / [KR] 과학적 계산용 사용자 정의 모듈
-import timeit                    # [EN] Tool to measure execution time / [KR] 실행 시간 측정 도구
-import numpy as np               # [EN] Library for numerical array processing / [KR] 수치 계산 및 배열 처리를 위한 라이브러리
+import matplotlib.pyplot as plt  # [EN] Library for plotting graphs / [KR] 그래프를 그리기 위한 라이브러리
+import numpy as np  # [EN] Library for numerical array processing / [KR] 수치 계산 및 배열 처리를 위한 라이브러리
+import proc.processing as proc  # [EN] Custom module for scientific calculations / [KR] 과학적 계산용 사용자 정의 모듈
 
 # [EN] Set base directory for data files
 # [KR] 데이터 파일들이 위치한 기본 경로 설정
@@ -23,16 +24,16 @@ input_base = "C:/Users/gkwon/Pycharmprojects/ezpit_local/data/"
 # [EN] File paths for Compton scattering databases
 # [KR] 콤프턴 산란 계산에 필요한 데이터베이스 파일 경로들
 # [Type: str] (문자열)
-compton_aff_element_file = input_base + 'compton_element_only.txt'   # 원소 기호 목록
-compton_aff_parm_file = input_base + 'compton_parameter_only.txt'    # 산란 파라미터 목록
-compton_atomnumber_file = input_base + 'compton_atomicnumber.txt'    # 원자 번호 목록
+compton_aff_element_file = input_base + "compton_element_only.txt"  # 원소 기호 목록
+compton_aff_parm_file = input_base + "compton_parameter_only.txt"  # 산란 파라미터 목록
+compton_atomnumber_file = input_base + "compton_atomicnumber.txt"  # 원자 번호 목록
 
 # [EN] Parameters for Calculation
 # [KR] 계산에 필요한 물리적/실험적 파라미터 설정
 # [Type: float] X-ray wavelength in Angstroms (X선 파장)
 wavelength = 0.1665
 # [Type: int] Breit-Dirac recoil parameter (usually 2 or 3) (반동 보정 계수)
-alpha = 3  #2 or 3 can be used.
+alpha = 3  # 2 or 3 can be used.
 # ----------------------------------------------------------------------------------
 # [EN] Chemical composition of the sample — EZPDF_GUI_3 compatible.
 #      Accepted formats:
@@ -54,12 +55,13 @@ alpha = 3  #2 or 3 can be used.
 # ----------------------------------------------------------------------------------
 # composition = {'Co':2, 'O':2, 'P':1}
 # composition = {'C': 30, 'H': 24, 'N': 6, 'Ru': 1}  # [EN] dict form / [KR] 딕셔너리 형식
-#composition = "Li0.2Co0.36Mn0.37Ni0.07"
+# composition = "Li0.2Co0.36Mn0.37Ni0.07"
 # composition = {'C':0.3, 'H': 0.24, 'N':0.06, 'Ru': 0.01}
 # composition = "C30H24N6Ru1"                       # [EN] String form (same result) / [KR] 문자열 (동일 결과)
 # composition = "C 30 H 24 N 6 Ru 1"                # [EN] Spaced string / [KR] 공백 구분 문자열
-# composition = {'C': 0.30, 'H': 0.24, 'N': 0.06, 'Ru': 0.01}  # [EN] Fractional dict (auto-handled) / [KR] 소수 딕셔너리 (자동 처리)
-composition = "Li0.2Co0.36Mn0.37Ni0.07Fe2+0.1"          # [EN] Fractional string (auto-handled) / [KR] 소수 문자열 (자동 처리)
+# composition = {'C': 0.30, 'H': 0.24, 'N': 0.06, 'Ru': 0.01}
+# [EN] Fractional dict (auto-handled) / [KR] 소수 딜셔너리 (자동 처리)
+composition = "Li0.2Co0.36Mn0.37Ni0.07Fe2+0.1"  # [EN] Fractional string (auto-handled) / [KR] 소수 문자열 (자동 처리)
 # [Type: float] Q range settings (Q 최소값, 최대값, 간격)
 qmin = 0
 qmax = 30
@@ -75,14 +77,14 @@ qstep = 0.01
 #      - 소수  → 소수를 원소별 weight로 그대로 유지하고 compton_cal_exp에
 #        weights=로 전달 (Li0.2Co0.36... 그대로 사용, 정수배 변환 안 함).
 #      두 방식 모두 동일한 Compton 강도를 줍니다.
-comp_parsed = losa.parse_composition(composition)   # dict (values may be float)
+comp_parsed = losa.parse_composition(composition)  # dict (values may be float)
 is_fractional = any(not float(v).is_integer() for v in comp_parsed.values())
 
 if is_fractional:
     # [EN] Fractional: unique element names + exact fractional weights.
     # [KR] 소수: 고유 원소 이름 + 정확한 소수 weight.
     atom_unique_names, comp_weights = losa.composition_weights(comp_parsed)
-    atom_names = None      # [EN] not needed on the fractional path / [KR] 소수 경로에선 불필요
+    atom_names = None  # [EN] not needed on the fractional path / [KR] 소수 경로에선 불필요
 else:
     # [EN] Integer: expand to a per-atom name list, then group.
     # [KR] 정수: 원자별 이름 리스트로 확장 후 그룹화.
@@ -121,13 +123,14 @@ else:
 # [EN] Retrieve specific Compton scattering parameters for the sample's composition
 # [KR] 샘플에 포함된 원소들에 해당하는 콤프턴 산란 파라미터만 추출합니다.
 # both (get_scattering_factors or get_compton_scattering_factors) are working
-#compton_scat_form_factor, atomic_number = losa.get_scattering_factors(atom_unique_names,
+# compton_scat_form_factor, atomic_number = losa.get_scattering_factors(atom_unique_names,
 #                                                           compton_atom_names,compton_scat_parms) #[1]
 
 # compton_scat_form_factor: [Type: numpy.ndarray] Parameters for Co, O, P
 # atomic_number: [Type: list of int] Atomic numbers (e.g., [27, 8, 15])
-compton_scat_form_factor, atomic_number = losa.get_compton_scattering_factors(atom_unique_names,
-                                                                    compton_atom_names,compton_scat_parms) #[1]
+compton_scat_form_factor, atomic_number = losa.get_compton_scattering_factors(
+    atom_unique_names, compton_atom_names, compton_scat_parms
+)  # [1]
 
 # -----------------------------------------------------------------------------
 # Calculation
@@ -144,24 +147,41 @@ compton_scat_form_factor, atomic_number = losa.get_compton_scattering_factors(at
 # list_compton_scat: [Type: list or numpy.ndarray] Compton intensity (Y-axis)
 if is_fractional:
     list_q, list_compton_scat = proc.compton_cal_exp(
-        None, compton_scat_parms, compton_scat_form_factor,
-        atomic_number, qmin=qmin, qmax=qmax, qstep=qstep,
-        wavelength=wavelength, alpha=alpha, weights=comp_weights)
+        None,
+        compton_scat_parms,
+        compton_scat_form_factor,
+        atomic_number,
+        qmin=qmin,
+        qmax=qmax,
+        qstep=qstep,
+        wavelength=wavelength,
+        alpha=alpha,
+        weights=comp_weights,
+    )
 else:
     list_q, list_compton_scat = proc.compton_cal_exp(
-        atom_indices, compton_scat_parms, compton_scat_form_factor,
-        atomic_number, qmin=qmin, qmax=qmax, qstep=qstep,
-        wavelength=wavelength, alpha=alpha)    #proc.compton_calc_exp(XXXX)
+        atom_indices,
+        compton_scat_parms,
+        compton_scat_form_factor,
+        atomic_number,
+        qmin=qmin,
+        qmax=qmax,
+        qstep=qstep,
+        wavelength=wavelength,
+        alpha=alpha,
+    )  # proc.compton_calc_exp(XXXX)
 
 # [EN] Save the result to a text file
 # [KR] 계산 결과를 텍스트 파일로 저장합니다. (컬럼 1: Q, 컬럼 2: Intensity)
-np.savetxt(input_base + 'list_compton_scat.chi', np.column_stack(([list_q, list_compton_scat]))) # or use "list(zip(r, Gr)))"
+np.savetxt(
+    input_base + "list_compton_scat.chi", np.column_stack([list_q, list_compton_scat])
+)  # or use "list(zip(r, Gr)))"
 
 # -----------------------------------------------------------------------------
 # Plotting
 # -----------------------------------------------------------------------------
 plt.figure(0)
-plt.plot(list_q, list_compton_scat, label='Compton_scat_pattern')
-plt.grid() # [EN] Show grid / [KR] 격자 표시
-plt.legend() # [EN] Show legend / [KR] 범례 표시
-plt.show() # [EN] Display plot / [KR] 그래프 출력
+plt.plot(list_q, list_compton_scat, label="Compton_scat_pattern")
+plt.grid()  # [EN] Show grid / [KR] 격자 표시
+plt.legend()  # [EN] Show legend / [KR] 범례 표시
+plt.show()  # [EN] Display plot / [KR] 그래프 출력
