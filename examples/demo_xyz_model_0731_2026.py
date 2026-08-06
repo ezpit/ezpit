@@ -1,3 +1,14 @@
+# ----------------------------------------------------------------------------------
+# [EN] Path setup: add the EZPDF_code_version folder (parent of 'examples') to
+#      sys.path so 'losa' and 'proc' packages can be imported regardless of the
+#      current working directory.
+# [KR] 경로 설정: 'examples'의 상위 폴더(EZPDF_code_version)를 sys.path에 추가하여
+#      실행 위치와 무관하게 'losa', 'proc' 패키지를 import할 수 있게 합니다.
+# ----------------------------------------------------------------------------------
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import matplotlib.pyplot as plt  # [EN] Library for plotting graphs / [KR] 그래프를 그리기 위한 라이브러리
 import ezpit.io as losa  # [EN] Custom module for loading/saving data / [KR] 데이터 로드 및 저장을 위한 사용자 정의 모듈
 import ezpit.processing as proc   # [EN] Custom module for scientific calculations / [KR] 과학적 계산(S(q), G(r) 등)을 위한 사용자 정의 모듈
@@ -11,27 +22,35 @@ input_base = "C:/Users/gkwon/Pycharmprojects/ezpit/EZPDF_code_version/data/"
 # [EN] Input files: G(r) experimental data (for comparison) and XYZ structure file
 # [KR] 입력 파일: 비교용 G(r) 데이터와 이론적 계산을 위한 구조 파일(.xyz)
 input_exp_file = input_base + '/sum_A_CoPiITO_110320-1_Nsum5.chi_integral.gr'
-atom_xyz_file = input_base + "/5IrC_r5a-1Ir.xyz" #5IrC_r5a-1Ir.xyz"  #Ni(OH)2-109391-ICSD-10x10x1.xyz"
+atom_xyz_file = input_base + "/Iaa-Iaa_solute_0001.xyz" #Iaa-Iaa_solute_0001.xyz" #5IrC_r5a-1Ir.xyz" #5IrC_r5a-1Ir.xyz"  #Ni(OH)2-109391-ICSD-10x10x1.xyz"
 
 # [EN] Database files for atomic scattering factors
 # [KR] 원자 산란 인자 정보를 담은 데이터베이스 파일 경로
 aff_element_file = input_base + '/aff_elementonly.txt'
 aff_parm_file = input_base + 'aff_parmonly.txt'
 
-# [EN] Load atom names and positions from .xyz file
+# [EN] Load atomic database FIRST (element/ion names + scattering parameters),
+#      so the element/ion list can validate the .xyz species (including IONS).
+# [KR] 원자 데이터베이스를 먼저 로드합니다 (원소/이온 기호 + 산란 파라미터).
+#      이 원소/이온 목록으로 .xyz의 화학종을 검증합니다 (이온 포함).
+database_atom_names = losa.load_atom_names(aff_element_file)
+database_scat_factors = losa.load_scattering_factors(aff_parm_file)
+
+# [EN] Load atom names and (x,y,z) positions from .xyz file.
+#      Passing database_atom_names as valid_symbols lets the loader recognise
+#      IONS present in the form-factor table (e.g. 'Fe2+', 'O2-', 'Cl1-'), and
+#      auto-skip any header/comment lines.
 # [KR] .xyz 파일에서 원자 이름 리스트와 (x,y,z) 좌표 배열을 불러옵니다.
-# atom_names: List of strings ['Ir', 'Ir', ...]
+#      database_atom_names를 valid_symbols로 넘기면 form-factor 테이블에 있는
+#      이온('Fe2+', 'O2-', 'Cl1-' 등)도 인식하고 헤더/주석 줄은 자동으로 건너뜁니다.
+# atom_names: List of strings ['Ir', 'Ir', ...] (or ions like ['Fe2+', ...])
 # atom_positions: Numpy array (N rows, 3 columns)
-atom_names, atom_positions = losa.load_atom_name_positions(atom_xyz_file)
+atom_names, atom_positions = losa.load_atom_name_positions(
+    atom_xyz_file, database_atom_names)
 #print(atom_names)
 
 #import sys
 #sys.exit(0)
-
-# [EN] Load atomic database (Element names and scattering parameters)
-# [KR] 원자 데이터베이스 로드 (원소 기호 및 산란 파라미터)
-database_atom_names = losa.load_atom_names(aff_element_file)
-database_scat_factors = losa.load_scattering_factors(aff_parm_file)
 
 # print(atom_names)
 # print(atom_positions)
@@ -41,10 +60,10 @@ database_scat_factors = losa.load_scattering_factors(aff_parm_file)
 # [EN] Calculation Parameters (Simulation settings)
 # [KR] 계산 파라미터 설정 (시뮬레이션 환경 설정)
 qmin = 0.0          # [EN] Minimum Q value (1/A) / [KR] Q 최소값
-qmax = 23           # [EN] Maximum Q value (1/A) / [KR] Q 최대값
+qmax = 30           # [EN] Maximum Q value (1/A) / [KR] Q 최대값
 qstep = 0.01       # [EN] Step size for Q / [KR] Q 간격 (작을수록 정밀)
 rmin = 0            # [EN] Minimum r value (A) / [KR] 거리 r 최소값
-rmax = 20           # [EN] Maximum r value (A) / [KR] 거리 r 최대값
+rmax = 30           # [EN] Maximum r value (A) / [KR] 거리 r 최대값
 rstep = 0.001       # [EN] Step size for r / [KR] 거리 r 간격
 qdamp = 0.0         # [EN] Resolution damping factor / [KR] 기기 해상도 감쇠 인자 (이론 계산시 보통 0)
 #method = 'ifft'

@@ -12,6 +12,7 @@ from PySide6.QtCore import Qt, QTimer, QEvent
 
 from .ui_helpers import update_file_list_numbering
 from ezpit.gui.controller.graph_controller import load_selected_files
+from ezpit.gui.model.helpers import composition_string_from_xyz
 
 import os
 import re
@@ -132,6 +133,8 @@ class FilePanel(QWidget):
 
         self.file_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self.file_list.itemDoubleClicked.connect(self.on_file_double_clicked)
+        # Auto-fill the Compton tab composition when a single .xyz is selected.
+        self.file_list.itemSelectionChanged.connect(self._autofill_compton_composition)
 
         # Drag & drop
         try:
@@ -324,6 +327,37 @@ class FilePanel(QWidget):
                 self.main_window.plot_windows.append(new_plot_window)
 
         self.main_window.current_path = [item]
+
+    def _autofill_compton_composition(self):
+        """When exactly one .xyz file is selected, fill the Compton tab's
+        composition field with the elements counted from that file.
+
+        Multi-selection is ignored so we never clobber the field during a
+        drag-select. The user can still edit the field afterward; the Compton
+        Calculate button asks which source to use if it no longer matches.
+        """
+        cp = self.control_panel
+        if cp is None or not hasattr(cp, "compton_composition_input"):
+            return
+        try:
+            items = self.file_list.selectedItems()
+        except RuntimeError:
+            return
+        if len(items) != 1:
+            return
+        try:
+            path = items[0].data(0, Qt.ItemDataRole.UserRole)
+        except RuntimeError:
+            return
+        if not path or os.path.splitext(path)[1].lower() != ".xyz":
+            return
+        comp = composition_string_from_xyz(path)
+        if comp:
+            cp.compton_composition_input.setText(comp)
+            # Remember which file/composition this came from so the Compton
+            # Calculate button can still prompt after the file is deselected.
+            cp._compton_xyz_path = path
+            cp._compton_xyz_comp = comp
 
     def delete_selected_files(self):
         selected_items = self.file_list.selectedItems()

@@ -1,6 +1,8 @@
 """Consolidated element data tables for atomic form factor (AFF) and
 Compton scattering calculations. Generated from the former data/*.txt files."""
 
+import numpy as np
+
 AFF_ELEMENTS: list[str] = [
     'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
     'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca',
@@ -358,3 +360,35 @@ COMPTON_PARAMETERS: list[list[float]] = [
     [3.79259992, 12.6625996, 25.8794994, 31.9403, 16.7045002, 0.0, 236.802994, 17.5907993, 1.76069999, 0.198400006, 0.0209],
     [3.90510011, 12.8415003, 26.4298, 31.9514008, 16.8474998, 0.0, 221.177994, 16.8736992, 1.70079994, 0.193200007, 0.0205],
 ]
+
+
+# --- Lookup tables and accessors (replaces the former ElementData class) -----
+
+_AFF_INDEX = {name.lower(): i for i, name in enumerate(AFF_ELEMENTS)}
+_COMPTON_INDEX = {name.lower(): i for i, name in enumerate(COMPTON_ELEMENTS)}
+_AFF_PARM = np.array(AFF_PARAMETERS)
+_COMPTON_PARM = np.array(COMPTON_PARAMETERS)
+_COMPTON_Z = np.array(COMPTON_ATOMIC_NUMBERS)
+
+
+def get_aff_scattering_factors(atom_names):
+    """Return atomic form-factor parameters (one row per name)."""
+    return np.array([_AFF_PARM[_AFF_INDEX[name.lower()]] for name in atom_names])
+
+
+def get_compton_scattering_factors(atom_names):
+    """Return Compton scattering parameters and atomic numbers for the names."""
+    scat_factors = []
+    atomic_numbers = []
+    for name in atom_names:
+        idx = _COMPTON_INDEX.get(name.lower())
+        if idx is None:
+            raise ValueError(f"No Compton data for atom: {name}")
+        scat_factors.append(_COMPTON_PARM[idx])
+        atomic_numbers.append(_COMPTON_Z[idx])
+    return np.array(scat_factors), atomic_numbers
+
+
+def get_compton_parameter_only():
+    """Return the full Compton parameter table."""
+    return np.array(_COMPTON_PARM)

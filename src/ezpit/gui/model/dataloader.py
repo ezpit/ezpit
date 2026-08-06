@@ -8,7 +8,7 @@ from ezpit.gui.model.extensions import run_transforms
 from PySide6.QtWidgets import QMessageBox
 
 def get_graph_data(path, extension, control_panel, multiple_graphs=False):
-    if extension in ['.iq', '.chi', '.sq', '.fq', '.gr', '.caliq', '.calfq', '.calsq', '.calgr', '.compton']:
+    if extension in ['.iq', '.chi', '.xy', '.dat', '.txt', '.sq', '.fq', '.gr', '.caliq', '.calfq', '.calsq', '.calgr', '.compton']:
         x_raw_input, y_raw_input = extract_data(path)
         x, y = x_raw_input, y_raw_input
 
@@ -27,7 +27,7 @@ def get_graph_data(path, extension, control_panel, multiple_graphs=False):
         qmin = float(param_source['qmin'])
         qmax = float(param_source['qmax'])
 
-        if extension in ['.chi', '.iq', '.caliq']:
+        if extension in ['.chi', '.iq', '.xy', '.dat', '.txt', '.caliq']:
             try:
                 res = get_expSq([x, y], control_panel, multiple_graphs=multiple_graphs)
                 q_range, list_Iq, scaled_expIq, list_scaled_bkgIq, list_Sq_unnorm, norm_list_Sq, list_Fq, mean_sq_fi, sq_mean_fi = \
@@ -107,7 +107,7 @@ def get_graph_data(path, extension, control_panel, multiple_graphs=False):
             xs[0] = x
             ys[0] = y
 
-        if extension not in ['.chi', '.iq', '.caliq']:
+        if extension not in ['.chi', '.iq', '.xy', '.dat', '.txt', '.caliq']:
             x = x_raw_input
             y = y_raw_input
         else:
@@ -208,4 +208,3 @@ def get_config_data(path):
         write_config_file(config, config_path)
 
     return config
-

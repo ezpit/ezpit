@@ -1,10 +1,19 @@
+# ----------------------------------------------------------------------------------
+# [EN] Path setup: add the EZPDF_code_version folder (parent of 'examples') to
+#      sys.path so that 'losa' and 'proc' packages can be imported regardless of
+#      the current working directory.
+# [KR] 경로 설정: 'examples'의 상위 폴더(EZPDF_code_version)를 sys.path에 추가하여
+#      실행 위치와 무관하게 'losa', 'proc' 패키지를 import할 수 있게 합니다.
+# ----------------------------------------------------------------------------------
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import matplotlib.pyplot as plt     # [EN] Library for plotting graphs / [KR] 그래프를 그리기 위한 라이브러리
 import ezpit.io as losa
 import ezpit.processing as proc    #파일 이름 바꾸었음.
 import numpy as np                  # [EN] Fundamental package for numerical computation (Arrays) / [KR] 수치 계산 및 배열 처리를 위한 핵심 패키지
-import sys                          # [EN] System-specific parameters and functions / [KR] 시스템 관련 파라미터 및 함수
 import io  # [EN] Core tools for working with streams (Input/Output) / [KR] 데이터 입출력 스트림 처리를 위한 도구
-import os  # [EN] Interface for operating system (File paths) / [KR] 운영체제 인터페이스 (파일 경로 및 폴더 조작)
 import timeit                       # [EN] Tool for measuring execution time / [KR] 코드 실행 시간을 측정하는 도구
 
 # ----------------------------------------------------------------------------------
@@ -33,7 +42,32 @@ bkgqiq_data = bkgqiq_input_base + 'A_emptyquartzcap_0p5_20240219-122602_4e50c5_p
 
 # [EN] Parameters for Analysis (User settings)
 # [KR] 분석 파라미터 설정 (사용자가 값을 바꾸며 테스트하는 곳)
-composition = {'Co': 38, 'O': 119, 'P': 20}  # [EN] Chemical composition (Dict) / [KR] 화학 조성
+# ----------------------------------------------------------------------------------
+# [EN] Composition input — EZPDF_GUI_3 compatible. Several formats are accepted:
+#        (1) dict           : {'Co': 38, 'O': 119, 'P': 20}
+#        (2) compact string : "Co38O119P20"
+#        (3) spaced string  : "Co 38 O 119 P 20"
+#        (4) count-1 omitted: "SiO2"   (== {'Si': 1, 'O': 2})
+#        (5) fractions      : "Li0.2Co0.36Mn0.37Ni0.07"  (== "Li20Co36Mn37Ni7")
+#      For (1)-(4) (whole numbers) use convert_atom_names + group_atoms below.
+#      For (5) (fractions) use composition_weights instead — see the commented
+#      "Fractional composition example" block right after group_atoms.
+# [KR] 조성 입력 — EZPDF_GUI_3 호환. 여러 형식을 지원합니다:
+#        (1) 딕셔너리     : {'Co': 38, 'O': 119, 'P': 20}
+#        (2) 붙여쓴 문자열 : "Co38O119P20"
+#        (3) 공백 문자열   : "Co 38 O 119 P 20"
+#        (4) 개수 1 생략   : "SiO2"   (== {'Si': 1, 'O': 2})
+#        (5) 소수 조성     : "Li0.2Co0.36Mn0.37Ni0.07"  (== "Li20Co36Mn37Ni7")
+#      (1)~(4) 정수 조성은 아래 convert_atom_names + group_atoms 사용.
+#      (5) 소수 조성은 composition_weights 사용 — group_atoms 바로 뒤의
+#      "Fractional composition example" 주석 블록 참고.
+# ----------------------------------------------------------------------------------
+composition = {'Co': 38, 'O': 119, 'P': 20}  # [EN] Chemical composition / [KR] 화학 조성
+# composition = "Co38O119P20"                # [EN] String form (same result) / [KR] 문자열 (동일 결과)
+# composition = "Co 38 O 119 P 20"           # [EN] Spaced string / [KR] 공백 구분 문자열
+# composition = "SiO2"                        # [EN] Count of 1 omitted / [KR] 개수 1 생략
+# composition = {'Co': 0.038, 'O': 0.119, 'P': 0.020}  # [EN] Fractional dict (auto-handled) / [KR] 소수 딕셔너리 (자동 처리)
+# composition = "Li0.2Co0.36Mn0.37Ni0.07"    # [EN] Fractional string (auto-handled) / [KR] 소수 문자열 (자동 처리)
 qmin = 0.6  # [EN] Minimum Q (float) / [KR] Q 최소값
 qmax = 23  # [EN] Maximum Q (float) / [KR] Q 최대값
 qstep = 0.01  # [EN] Q step size (float) / [KR] Q 간격
@@ -50,10 +84,77 @@ alpha = 3  # [EN] Compton recoil parameter / [KR] 콤프턴 반동 파라미터
 
 # [EN] Compton Processing Steps
 # [KR] 콤프턴 산란 계산 과정
-atom_names = losa.convert_atom_names(composition)  # [EN] Convert dict to list / [KR] 딕셔너리를 리스트로 변환
+# ----------------------------------------------------------------------------------
+# [EN] Detect whether the composition is INTEGER or FRACTIONAL, and prepare both
+#      the weight-based averaging (for S(q)) and an integer index list (for Compton,
+#      which is inherently per-atom). For a fractional composition we scale every
+#      element up to the smallest whole numbers only to build the Compton
+#      atom_indices; the S(q) averaging still uses the exact fractional weights.
+# [KR] 조성이 정수인지 소수인지 자동 감지합니다. S(q) 평균은 weight 기반으로,
+#      Compton은 원자 단위이므로 정수 index 리스트를 준비합니다. 소수 조성이면
+#      Compton용 atom_indices를 만들기 위해 원소들을 최소 정수배로만 스케일하고,
+#      S(q) 평균 계산에는 정확한 소수 weight를 그대로 사용합니다.
+# ----------------------------------------------------------------------------------
+comp_parsed = losa.parse_composition(composition)   # dict (values may be float)
+is_fractional = any(not float(v).is_integer() for v in comp_parsed.values())
+
+# [EN] Per-unique-element names + weights (fraction-safe, for S(q) averaging)
+# [KR] 고유 원소 이름 + weight (소수 지원, S(q) 평균용)
+comp_names, comp_weights = losa.composition_weights(comp_parsed)
+
+if is_fractional:
+    # [EN] Build an integer index list for Compton by scaling to whole numbers.
+    # [KR] Compton용 정수 index 리스트: 최소 정수배로 스케일하여 생성.
+    from math import gcd
+    from functools import reduce
+    # scale fractions to integers (e.g. 0.038,0.119,0.020 -> 38,119,20 -> /gcd)
+    max_dec = max(len(("{0:.10f}".format(v).rstrip('0').split('.')[1]))
+                  if '.' in "{0:.10f}".format(v).rstrip('0') else 0
+                  for v in comp_weights)
+    scale = 10 ** max_dec
+    int_counts = [int(round(v * scale)) for v in comp_weights]
+    g = reduce(gcd, [c for c in int_counts if c > 0]) or 1
+    int_counts = [c // g for c in int_counts]
+    atom_names = [nm for nm, c in zip(comp_names, int_counts) for _ in range(c)]
+else:
+    # [EN] Integer composition: expand directly into per-atom list.
+    # [KR] 정수 조성: 원자별 리스트로 직접 확장.
+    atom_names = losa.convert_atom_names(comp_parsed)
+
 compton_atom_names = losa.load_atom_names(compton_aff_element_file)
 compton_scat_parms = losa.load_scattering_factors(compton_aff_parm_file)
 atom_unique_names, atom_counts, atom_indices = losa.group_atoms(atom_names)  # [EN] Group atoms / [KR] 원자 그룹화
+
+# ----------------------------------------------------------------------------------
+# [EN] Fractional composition example (optional)
+#      NOTE: to actually run this, place it AFTER database_atom_names and
+#      database_scat_factors are loaded (they are defined further below).
+#      If your composition contains fractions (e.g. a doped/alloy sample written
+#      the way it appears in a paper), convert_atom_names cannot expand it into
+#      whole atoms. Use composition_weights instead, and pass 'weights=' to
+#      cal_expSq. The scattering_factors must be ordered to match 'names'.
+#      Fractions and their integer-scaled form give identical S(q):
+#          "Li0.2Co0.36Mn0.37Ni0.07"  ==  "Li20Co36Mn37Ni7"
+# [KR] 소수 조성 예제 (선택)
+#      주의: 실제로 실행하려면 database_atom_names / database_scat_factors 가
+#      로드된 뒤(아래쪽에 정의됨)에 배치하세요.
+#      논문에 나오는 방식처럼 소수 조성(도핑/합금 시료 등)을 쓰는 경우,
+#      convert_atom_names로는 정수 원자로 확장할 수 없습니다. 대신
+#      composition_weights를 사용하고 cal_expSq에 'weights='를 전달하세요.
+#      scattering_factors는 'names' 순서와 일치해야 합니다.
+#      소수와 정수배 형태는 동일한 S(q)를 줍니다:
+#          "Li0.2Co0.36Mn0.37Ni0.07"  ==  "Li20Co36Mn37Ni7"
+#
+#   frac_comp = "Li0.2Co0.36Mn0.37Ni0.07"
+#   names, weights = losa.composition_weights(frac_comp)
+#   scattering_factors_frac = losa.get_scattering_factors(
+#       names, database_atom_names, database_scat_factors)
+#   q, Iq, scaled_expIq, list_scaled_bkgIq, list_Sq, Sq, Fq, mean_sq_fi, sq_mean_fi, polynomial_for_sq = \
+#       proc.cal_expSq(None, scattering_factors_frac, expqiq_data, bkgqiq_data,
+#                      qmin=qmin, qmax=qmax, qstep=qstep,
+#                      background_scale=background_scale, poly_order=poly_order,
+#                      weights=weights)
+# ----------------------------------------------------------------------------------
 
 # [EN] Get Compton factors
 # [KR] 콤프턴 인자 가져오기
@@ -80,11 +181,28 @@ scattering_factors = losa.get_scattering_factors(atom_unique_names, database_ato
 # [KR] 메인 함수(cal_expSq)를 실행하여 S(q), F(q)를 계산합니다.
 # [EN] Variables: q (Q-axis), Iq (Net intensity), Sq (Structure factor), Fq (Reduced structure function)
 # [KR] 변수: q (Q축), Iq (최종 강도), Sq (구조 인자), Fq (환산 구조 함수)
-q, Iq, scaled_expIq, list_scaled_bkgIq, list_Sq, Sq, Fq, mean_sq_fi, sq_mean_fi, polynomial_for_sq, normalized_intensity, normal_scattering_factor, normalization_scale = proc.cal_expSq(
-    atom_indices, scattering_factors,
-    expqiq_data, bkgqiq_data, qmin=qmin, qmax=qmax, qstep=qstep,
-    background_scale=background_scale,
-    poly_order=poly_order, return_Iq=False)
+# ----------------------------------------------------------------------------------
+# [EN] For a FRACTIONAL composition, order scattering_factors to match comp_names
+#      and pass weights=comp_weights. For an INTEGER composition, the usual
+#      atom_indices path is used. Both give identical S(q).
+# [KR] 소수 조성이면 scattering_factors를 comp_names 순서로 맞추고
+#      weights=comp_weights를 전달합니다. 정수 조성이면 기존 atom_indices 경로.
+#      두 방식 모두 동일한 S(q)를 줍니다.
+# ----------------------------------------------------------------------------------
+if is_fractional:
+    scattering_factors_w = losa.get_scattering_factors(comp_names, database_atom_names,
+                                                       database_scat_factors)
+    q, Iq, scaled_expIq, list_scaled_bkgIq, list_Sq, Sq, Fq, mean_sq_fi, sq_mean_fi, polynomial_for_sq, normalized_intensity, normal_scattering_factor, normalization_scale = proc.cal_expSq(
+        None, scattering_factors_w,
+        expqiq_data, bkgqiq_data, qmin=qmin, qmax=qmax, qstep=qstep,
+        background_scale=background_scale,
+        poly_order=poly_order, return_Iq=False, weights=comp_weights)
+else:
+    q, Iq, scaled_expIq, list_scaled_bkgIq, list_Sq, Sq, Fq, mean_sq_fi, sq_mean_fi, polynomial_for_sq, normalized_intensity, normal_scattering_factor, normalization_scale = proc.cal_expSq(
+        atom_indices, scattering_factors,
+        expqiq_data, bkgqiq_data, qmin=qmin, qmax=qmax, qstep=qstep,
+        background_scale=background_scale,
+        poly_order=poly_order, return_Iq=False)
 
 
 # np.savetxt('D:/1-Manuscript_2014/EZPDF_EZPIT/CoPi_test/Iq_baseline/sq_mean_fi.txt', sq_mean_fi)
@@ -349,5 +467,3 @@ plt.ylabel('G(r)')
 plt.grid()
 plt.legend()
 plt.show()  # [EN] Show all plots / [KR] 모든 그래프 화면에 출력
-
-
