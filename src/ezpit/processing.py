@@ -1334,3 +1334,10 @@ def smooth_with_noise_gain(y, gain=1e-4, order=2):
     """
     lambda_ = noise_gain_to_lambda(gain, order)
     return smooth_whittaker(y, lambda_, order)
+
+
+def batch_smooth_whittaker(y_2d, lambda_=1600.0, order=2):
+    """
+    Apply Whittaker-Henderson smoothing to each row of a 2D array.
+    """
+    return np.array([smooth_whittaker(row, lambda_, order) for row in y_2d])

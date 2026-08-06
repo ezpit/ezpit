@@ -1,11 +1,13 @@
 # model/processing.py
 
-from ezpit.gui.model.math_functions import (cal_expSq, get_aff_scattering_factors, get_compton_parameter_only,
-                                  cal_expGr_fft, smooth_whittaker, create_atom_distance_matrix,
-                                  cal_Sq, compton_cal_exp, get_compton_scattering_factors, cal_fq)
+from ezpit.processing import (cal_expSq, cal_expGr_fft, smooth_whittaker,
+                              create_atom_distance_matrix, cal_Sq, compton_cal_exp, cal_fq)
+from ezpit.gui.model.elem_data import ElementData
 # [수정] convert_atom_names 추가 임포트
 from ezpit.gui.model.helpers import parse_composition, group_atoms, extract_data, convert_atom_names
 import numpy as np
+
+_elem_data = ElementData()
 
 
 def get_expSq(exp_data, control_panel, multiple_graphs=False):
@@ -47,7 +49,7 @@ def get_expSq(exp_data, control_panel, multiple_graphs=False):
     # 4. 산란 인자는 고유 원소 이름만 있으면 되므로 keys() 사용 (속도 최적화)
     # (helpers.py의 get_aff_scattering_factors는 리스트를 받아 처리하므로 unique list 전달)
     unique_atom_names = list(composition_dict.keys())
-    scattering_factors = get_aff_scattering_factors(unique_atom_names)
+    scattering_factors = _elem_data.get_aff_scattering_factors(unique_atom_names)
     # -------------------------------------------------------------------------
 
     unit_type = basic_parameters['data_format']
@@ -70,7 +72,7 @@ def get_expSq(exp_data, control_panel, multiple_graphs=False):
         bkg_x, bkg_y = extract_data(background_path)
 
     # 수정된 atom_indices(N=157)를 사용하여 계산 함수 호출
-    # Normalization 로직은 math_functions.py에 없으므로 추가되지 않음.
+    # Normalization 로직은 ezpit.processing에 없으므로 추가되지 않음.
     res = cal_expSq(
         atom_indices, scattering_factors, exp_data, bkg_y,
         qmin, qmax, q_step, background_scale, poly_order, True
@@ -113,7 +115,7 @@ def get_xyz_graphs(atom_names, atom_positions, control_panel):
     atom_indices = group_atoms(atom_names)[2]
     cal_parameters = control_panel.get_cal_parameters()
     atom_distance_matrix = create_atom_distance_matrix(atom_positions)
-    scattering_factors = get_aff_scattering_factors(atom_names)
+    scattering_factors = _elem_data.get_aff_scattering_factors(atom_names)
     qmin = float(cal_parameters['qmin'])
     qmax = float(cal_parameters['qmax'])
     qstep = float(cal_parameters.get('qstep', 0.05))
@@ -136,8 +138,8 @@ def get_compton_values(control_panel):
     atom_names_list = convert_atom_names(atom_names)
     _, _, atom_indices = group_atoms(atom_names_list)
 
-    form_factors, atomic_numbers = get_compton_scattering_factors(list(atom_names.keys()))  # 고유 원소만 필요
-    compton_parm_only = get_compton_parameter_only()
+    form_factors, atomic_numbers = _elem_data.get_compton_scattering_factors(list(atom_names.keys()))  # 고유 원소만 필요
+    compton_parm_only = _elem_data.get_compton_parameter_only()
     return compton_cal_exp(atom_indices, compton_parm_only, form_factors, atomic_numbers, qmin, qmax, qstep, wavelength,
                            alpha)
 
