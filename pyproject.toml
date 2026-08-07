@@ -82,6 +82,7 @@ dev = [
     "pyqtgraph>=0.14.0",
     "pyside6>=6.11.1",
     "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
     "ruff>=0.16.1",
     "ty>=0.0.69",
 ]
