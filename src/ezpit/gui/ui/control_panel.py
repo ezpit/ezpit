@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QStyle,
     QTabWidget,
     QVBoxLayout,
+    QTreeWidgetItem,
     QWidget,
 )
 
@@ -44,7 +45,7 @@ from .ui_helpers import add_form_row, add_slider_field
 # Covers every accepted style: spaced or compact, a count of 1 that may be
 # omitted, and fractional amounts. Scaling every element by the same factor
 # describes the same material (Li0.2Co0.36Mn0.37Ni0.07 = Li20Co36Mn37Ni7).
-COMPOSITION_EXAMPLE_TEXT = (
+COMPOSITION_EXAMPLE_TEXT: str = (
     "Examples:  C 1 O 2 P 5   ·   Co38O119P1   ·   SiO2  (a count of 1 may be omitted)\n"
     "Fractions are allowed:  Li0.2Co0.36Mn0.37Ni0.07  =  Li20Co36Mn37Ni7"
 )
@@ -65,9 +66,6 @@ class ControlPanel(QWidget):
         fixed_font.setPointSize(9)
         self.setFont(fixed_font)
 
-        self.init_ui()
-
-    def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2, 2, 2, 2)
 
@@ -284,7 +282,7 @@ class ControlPanel(QWidget):
         self.use_bg_checkbox.setChecked(True)
         self.send_update()
 
-    def _path_from_item(self, obj):
+    def _path_from_item(self, obj: str | QTreeWidgetItem | None) -> str | None:
         """Return a file path from a string or a QTreeWidgetItem.
 
         file_panel.get_selected_file_paths() returns QTreeWidgetItem objects,
