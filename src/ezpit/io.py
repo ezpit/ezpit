@@ -1,5 +1,7 @@
 import os
 from collections import Counter
+from pathlib import Path
+from .elem_tables import AFF_ELEMENTS
 
 import numpy as np
 
@@ -179,7 +181,7 @@ def composition_weights(composition: str | dict[str, float]) -> tuple[list[str],
     return names, weights
 
 
-def load_atom_name_positions(file_path, valid_symbols):
+def load_atom_name_positions(file_path: str | Path, valid_symbols: list[str] = AFF_ELEMENTS) -> tuple[list[str], np.ndarray[tuple[int], np.dtype[np.float64]]]:
     """
     [EN] Load atom names and (x, y, z) positions from an .xyz file.
 
@@ -227,14 +229,17 @@ def load_atom_name_positions(file_path, valid_symbols):
         atom_names (list[str])        : [EN] Species symbols / [KR] 화학종 기호 리스트
         atom_positions (numpy.ndarray): [EN] (N, 3) float array / [KR] (N, 3) 실수 배열
     """
-    with open(file_path) as f:
-        lines = f.readlines()
+
+    if isinstance(file_path, str):
+        file_path = Path(file_path)
+    
+    lines = file_path.read_text().splitlines()
 
     # [EN] Accepted-symbol set from the form-factor table (may contain ions).
     # [KR] form-factor 테이블의 허용 기호 집합 (이온 포함 가능).
     symbol_set = set(valid_symbols)
 
-    def normalize_symbol(tok):
+    def normalize_symbol(tok: str) -> str | None:
         # [EN] Canonical accepted symbol for tok, or None.
         #      1) exact match (keeps ions as in the table, e.g. 'Fe2+')
         #      2) case-normalised element part (e.g. 'FE'->'Fe')
@@ -247,8 +252,8 @@ def load_atom_name_positions(file_path, valid_symbols):
             return cap
         return None
 
-    atom_names = []
-    atom_positions = []
+    atom_names: list[str] = []
+    atom_positions: list[list[float]] = []
     for line in lines:
         parts = line.split()
 
@@ -267,7 +272,7 @@ def load_atom_name_positions(file_path, valid_symbols):
         # [KR] (3) 다음 3개 토큰은 실수로 파싱되어야 함.
         try:
             xyz = [float(parts[1]), float(parts[2]), float(parts[3])]
-        except ValueError:
+        except ValueError as e:
             continue
 
         atom_names.append(symbol)
@@ -310,7 +315,7 @@ def load_atom_name_positions(file_path, valid_symbols):
     return atom_names, atom_positions
 
 
-def convert_atom_names(composition):
+def convert_atom_names(composition: str | dict[str, float]) -> list[str]:
     """
     [EN] Convert a whole-number composition (dict OR string) into a full list of.
 
@@ -339,7 +344,7 @@ def convert_atom_names(composition):
     return [el for el, count in comp.items() for _ in range(int(count))]
 
 
-def group_atoms(atom_names):
+def group_atoms(atom_names: list[str]) -> tuple[list[str], np.ndarray[tuple[int], np.dtype[np.int64]], np.ndarray[tuple[int], np.dtype[np.int64]]]:
     """
     Get unique atom names, their counts, and the index of atom in the unique.
 

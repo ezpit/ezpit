@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from ezpit.io import composition_weights, parse_composition
+from ezpit.io import composition_weights, convert_atom_names, group_atoms, parse_composition
 
 
 @pytest.mark.parametrize(
@@ -132,3 +132,96 @@ def test_composition_weights_empty_raises(composition: str | dict[str, float]):
 def test_composition_weights_nonpositive_raises(composition: dict[str, float]):
     with pytest.raises(ValueError, match="positive"):
         composition_weights(composition)
+
+
+@pytest.mark.parametrize(
+    ("composition", "expected"),
+    [
+        # Dict input, one entry per atom in dict order.
+        ({"Co": 3, "O": 4, "P": 1}, ["Co", "Co", "Co", "O", "O", "O", "O", "P"]),
+        # Compact string.
+        ("Co3O4P1", ["Co", "Co", "Co", "O", "O", "O", "O", "P"]),
+        # Spaced string parses identically.
+        ("Co 3 O 4 P", ["Co", "Co", "Co", "O", "O", "O", "O", "P"]),
+        # Count of 1 omitted.
+        ("SiO2", ["Si", "O", "O"]),
+        # Single atom.
+        ("H", ["H"]),
+    ],
+)
+def test_convert_atom_names_valid(composition: str | dict[str, float], expected: list[str]):
+    assert convert_atom_names(composition) == expected
+
+
+@pytest.mark.parametrize(
+    "composition",
+    [
+        "Li0.2Co0.8",  # fractional string
+        {"Li": 0.2, "Co": 0.8},  # fractional dict
+    ],
+)
+def test_convert_atom_names_fractional_raises(composition: str | dict[str, float]):
+    with pytest.raises(ValueError, match="fractional"):
+        convert_atom_names(composition)
+
+
+@pytest.mark.parametrize(
+    ("atom_names", "expected_names", "expected_counts", "expected_indices"),
+    [
+        # Grouped input: consecutive repeats.
+        (
+            ["Co", "Co", "Co", "O", "O", "O", "O", "P"],
+            ["Co", "O", "P"],
+            [3, 4, 1],
+            [0, 0, 0, 1, 1, 1, 1, 2],
+        ),
+        # Interleaved input: unique-name order follows first appearance.
+        (
+            ["Co", "O", "Co", "P", "O"],
+            ["Co", "O", "P"],
+            [2, 2, 1],
+            [0, 1, 0, 2, 1],
+        ),
+        # Single element repeated.
+        (["H", "H", "H"], ["H"], [3], [0, 0, 0]),
+        # Single atom.
+        (["Fe"], ["Fe"], [1], [0]),
+    ],
+)
+def test_group_atoms_valid(
+    atom_names: list[str],
+    expected_names: list[str],
+    expected_counts: list[int],
+    expected_indices: list[int],
+):
+    names, counts, indices = group_atoms(atom_names)
+
+    # Unique names preserve first-appearance order.
+    assert names == expected_names
+
+    # Counts and indices are numpy integer arrays.
+    assert isinstance(counts, np.ndarray)
+    assert isinstance(indices, np.ndarray)
+    assert np.issubdtype(counts.dtype, np.integer)
+    assert np.issubdtype(indices.dtype, np.integer)
+
+    np.testing.assert_array_equal(counts, np.asarray(expected_counts))
+    np.testing.assert_array_equal(indices, np.asarray(expected_indices))
+
+
+def test_group_atoms_counts_sum_matches_length():
+    atom_names = ["Co", "O", "Co", "P", "O", "O"]
+    _, counts, indices = group_atoms(atom_names)
+
+    # Total count equals the number of atoms passed in.
+    assert int(counts.sum()) == len(atom_names)
+    # One index per atom, each pointing into the unique-name list.
+    assert len(indices) == len(atom_names)
+
+
+def test_group_atoms_indices_map_back_to_names():
+    atom_names = ["Co", "O", "Co", "P", "O"]
+    names, _, indices = group_atoms(atom_names)
+
+    # Reconstructing names from indices reproduces the original input.
+    assert [names[i] for i in indices] == atom_names
