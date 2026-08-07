@@ -31,8 +31,5 @@ class CustomBuildHook(BuildHookInterface):
             iso = datetime.datetime.now().astimezone().isoformat()
 
         out = pathlib.Path("src/ezpit/_build_date.py")
-        out.write_text(
-            "# file generated at build time; don't track in version control\n"
-            f'__build_date__ = "{iso}"\n'
-        )
+        out.write_text(f'# file generated at build time; don\'t track in version control\n__build_date__ = "{iso}"\n')
         build_data["artifacts"].append("src/ezpit/_build_date.py")

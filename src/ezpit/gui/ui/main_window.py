@@ -1,6 +1,7 @@
 import json  # JSON data handling - JSON 데이터 처리
 import os  # OS path and file handling - OS 경로 및 파일 처리
 import sys  # Needed to detect a PyInstaller bundle - PyInstaller 번들 감지용
+from datetime import datetime
 
 from PySide6.QtCore import QSettings, QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ezpit import __build_date__, __version__  # Import version and build date
 from ezpit.gui.controller.graph_controller import (
     add_files_to_list_widget,
     load_selected_files,
@@ -26,8 +28,6 @@ from ezpit.gui.controller.graph_controller import (
 
 from .control_panel import ControlPanel
 from .file_panel import FilePanel
-
-from ezpit import __version__, __build_date__  # Import version and build date
 
 
 def resource_path(relative_path):
@@ -518,7 +518,9 @@ class PDFApp(QMainWindow):
     def show_about_dialog(self):
         # About Dialog Text - 프로그램 정보 텍스트
 
-        build_date_string = ", " + __build_date__.replace("T", " ").replace("+", " UTC+").replace("-", " UTC-") if __build_date__ != "unknown" else "unknown"
+        build_date_string = (
+            ", " + datetime.fromisoformat(__build_date__).strftime("%B %d, %Y") if __build_date__ else ""
+        )
         about_text = f"""
         <b>EZPDF (Easy(EZ) Pair Distribution Function (PDF) v{__version__}{build_date_string})</b>
         <p>: An easy-to-use software developed by the NSLS-II team for processing X-ray
