@@ -1,9 +1,10 @@
 import os
 from collections import Counter
 from pathlib import Path
-from .elem_tables import AFF_ELEMENTS
 
 import numpy as np
+
+from .elem_tables import AFF_ELEMENTS
 
 
 def parse_composition(composition: str | dict[str, float]) -> dict[str, float]:
@@ -229,10 +230,9 @@ def load_atom_name_positions(file_path: str | Path, valid_symbols: list[str] = A
         atom_names (list[str])        : [EN] Species symbols / [KR] 화학종 기호 리스트
         atom_positions (numpy.ndarray): [EN] (N, 3) float array / [KR] (N, 3) 실수 배열
     """
-
     if isinstance(file_path, str):
         file_path = Path(file_path)
-    
+
     lines = file_path.read_text().splitlines()
 
     # [EN] Accepted-symbol set from the form-factor table (may contain ions).
@@ -272,7 +272,7 @@ def load_atom_name_positions(file_path: str | Path, valid_symbols: list[str] = A
         # [KR] (3) 다음 3개 토큰은 실수로 파싱되어야 함.
         try:
             xyz = [float(parts[1]), float(parts[2]), float(parts[3])]
-        except ValueError as e:
+        except ValueError:
             continue
 
         atom_names.append(symbol)
@@ -301,7 +301,7 @@ def load_atom_name_positions(file_path: str | Path, valid_symbols: list[str] = A
     ion_names = [s for s in atom_names if ("+" in s) or ("-" in s)]
     neutral_count = total - len(ion_names)
 
-    fname = file_path.replace("\\", "/").split("/")[-1]
+    fname = file_path.name
     if ion_names:
         unique_ions = sorted(set(ion_names))
         print(

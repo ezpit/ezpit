@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from ezpit.io import composition_weights, convert_atom_names, group_atoms, parse_composition
+from ezpit.io import composition_weights, convert_atom_names, group_atoms, load_atom_name_positions, parse_composition
 
 
 @pytest.mark.parametrize(
@@ -225,3 +225,89 @@ def test_group_atoms_indices_map_back_to_names():
 
     # Reconstructing names from indices reproduces the original input.
     assert [names[i] for i in indices] == atom_names
+
+
+# ----------------------------------------------------------------------------------
+# load_atom_name_positions
+# ----------------------------------------------------------------------------------
+# Accepted-symbol table used by the tests (kept small and explicit).
+VALID_SYMBOLS = ["Co", "O", "P", "Si", "Fe", "Fe2+", "O2-"]
+
+
+@pytest.mark.parametrize(
+    ("contents", "expected_names", "expected_positions"),
+    [
+        # Standard .xyz: count line + comment line + atom lines (both skipped/read).
+        (
+            "3\ncomment line\nCo 0.0 0.0 0.0\nO 1.0 2.0 3.0\nP -1.5 0.5 2.5\n",
+            ["Co", "O", "P"],
+            [[0.0, 0.0, 0.0], [1.0, 2.0, 3.0], [-1.5, 0.5, 2.5]],
+        ),
+        # No header at all — atom lines are still detected.
+        (
+            "Si 0.0 0.0 0.0\nO 1.0 1.0 1.0\n",
+            ["Si", "O"],
+            [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]],
+        ),
+        # Extra columns after x, y, z (charge/force) are ignored.
+        (
+            "Co 0.1 0.2 0.3 0.5 1.0\n",
+            ["Co"],
+            [[0.1, 0.2, 0.3]],
+        ),
+        # Case-normalised element part ('FE' -> 'Fe', 'co' -> 'Co').
+        (
+            "FE 0.0 0.0 0.0\nco 1.0 1.0 1.0\n",
+            ["Fe", "Co"],
+            [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]],
+        ),
+        # Ions in the table are matched exactly.
+        (
+            "Fe2+ 0.0 0.0 0.0\nO2- 1.0 1.0 1.0\n",
+            ["Fe2+", "O2-"],
+            [[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]],
+        ),
+        # Blank lines and unknown-symbol lines are skipped.
+        (
+            "\nXx 0.0 0.0 0.0\nCo 1.0 2.0 3.0\n\n",
+            ["Co"],
+            [[1.0, 2.0, 3.0]],
+        ),
+    ],
+)
+def test_load_atom_name_positions_valid(
+    tmp_path,
+    contents: str,
+    expected_names: list[str],
+    expected_positions: list[list[float]],
+):
+    xyz_file = tmp_path / "structure.xyz"
+    xyz_file.write_text(contents)
+
+    names, positions = load_atom_name_positions(xyz_file, VALID_SYMBOLS)
+
+    assert names == expected_names
+    assert isinstance(positions, np.ndarray)
+    assert positions.dtype == np.float64
+    assert positions.shape == (len(expected_names), 3)
+    np.testing.assert_allclose(positions, np.asarray(expected_positions))
+
+
+def test_load_atom_name_positions_accepts_str_path(tmp_path):
+    # A plain string path is converted to Path internally.
+    xyz_file = tmp_path / "structure.xyz"
+    xyz_file.write_text("Co 0.0 0.0 0.0\n")
+
+    names, positions = load_atom_name_positions(str(xyz_file), VALID_SYMBOLS)
+
+    assert names == ["Co"]
+    np.testing.assert_allclose(positions, np.asarray([[0.0, 0.0, 0.0]]))
+
+
+def test_load_atom_name_positions_no_atoms_raises(tmp_path):
+    # A file with only header/unknown lines yields no atoms.
+    xyz_file = tmp_path / "empty.xyz"
+    xyz_file.write_text("2\njust a comment\nXx 0.0 0.0 0.0\n")
+
+    with pytest.raises(ValueError, match="No atom coordinates found"):
+        load_atom_name_positions(xyz_file, VALID_SYMBOLS)
