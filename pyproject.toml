@@ -52,6 +52,26 @@ version-file = "src/ezpit/_version.py"
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"
 
+# Bundle the GUI icons/images as package data so they are always shipped in the
+# sdist and wheel, regardless of VCS/.gitignore state.
+[tool.hatch.build.targets.wheel]
+artifacts = [
+    "*.ico",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.svg",
+]
+
+[tool.hatch.build.targets.sdist]
+artifacts = [
+    "*.ico",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.svg",
+]
+
 [dependency-groups]
 dev = [
     "import-linter>=2.13",
