@@ -4,10 +4,9 @@ from collections import Counter
 import numpy as np
 
 
-def parse_composition(composition):
+def parse_composition(composition: str | dict[str, float]) -> dict[str, float]:
     """
     [EN] Parse a composition string from the Control Panel and turn it into a.
-
          dictionary (EZPDF_GUI_3 helpers.py behaviour).
          Both spaced and compact styles are accepted, and a quantity of 1 may be
          omitted. All of the following give {'Co': 38, 'O': 119, 'P': 1}:
@@ -311,33 +310,6 @@ def load_atom_name_positions(file_path, valid_symbols):
     return atom_names, atom_positions
 
 
-def load_atom_names(file_path):
-    """
-    database_atom_names = losa.load_atom_names(compton_aff_element_file).
-
-    print('database_atom_names = ', database_atom_names)
-    print all atom names in compton_element_only.txt
-    database_atom_names =  ['H', 'He', 'Li', 'Be',,,,,,,,,,,'U'].
-    """
-    with open(file_path) as f:
-        atom_list = [line.strip() for line in f.readlines() if line.strip() != ""]
-    return atom_list
-
-
-def load_scattering_factors(file_path):
-    """
-    database_scat_factors = losa.load_scattering_factors(compton_aff_parm_file).
-
-    print('database_scat_factors = ', database_scat_factors)
-    print all parameters for compton scattering form factor in compton_parameter_only.txt.
-    """
-    with open(file_path) as f:
-        data = []
-        for line in f:
-            data.append([float(val) for val in line.strip().split("\t")])
-    return np.array(data)
-
-
 def convert_atom_names(composition):
     """
     [EN] Convert a whole-number composition (dict OR string) into a full list of.
@@ -365,47 +337,6 @@ def convert_atom_names(composition):
             )
 
     return [el for el, count in comp.items() for _ in range(int(count))]
-
-
-def get_scattering_factors(atom_names, database_atom_names, database_scat_factors):
-    """
-    Find Compton scattering parameters according to the given composition.
-
-    print('compton_scattering_factors ====== ', Compton_scattering_factors)
-    # --> if composition is composition = {'Co':2, 'O':1, 'P':1}, get Compton scattering parameters for Co, O, P
-    num_atom = len(atom_indices)
-    # num_atom =  4, i.e, # N: total number of atoms in composition
-    num_fact = len(compton_scattering_factors)
-    # num_fact =  3, i.e. # how many different atoms in composition
-    print('atomic_number = ', atomic_number)  # show atomic number of each atom in periodic table
-    # --> if composition is composition = {'Co':2, 'O':1, 'P':1},  atomic_number =  [27, 8, 15].
-    """
-    scat_factors = []
-    for atom in atom_names:
-        if atom in database_atom_names:
-            idx = database_atom_names.index(atom)
-            scat_factors.append(database_scat_factors[idx])
-        else:
-            raise ValueError(f"There is no atom {atom} in database")
-    return np.asarray(scat_factors)
-
-
-# added 12/18/2023######################################
-def get_compton_scattering_factors(atom_names, database_atom_names, database_scat_factors):
-    """Add compton scattering factor with give experimental q."""
-    scat_factors = []
-    atomic_number = []
-    for atom in atom_names:
-        if atom in database_atom_names:
-            idx = database_atom_names.index(atom)
-            scat_factors.append(database_scat_factors[idx])
-            atomic_number.append(idx + 1)
-        else:
-            raise ValueError(f"There is no atom {atom} in database")
-    return np.asarray(scat_factors), atomic_number
-
-
-# added 12/18/2023######################################
 
 
 def group_atoms(atom_names):

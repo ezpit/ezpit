@@ -1,6 +1,7 @@
 # controller/graph_controller.py
 
 import os
+from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import Qt
@@ -11,7 +12,7 @@ from ezpit.gui.model.processing import get_compton_values
 from ezpit.gui.ui.ui_helpers import get_short_name
 from ezpit.gui.ui.viewer import PlotWindow
 
-VALID_EXTENSIONS = [
+VALID_EXTENSIONS: list[str] = [
     ".chi",
     ".gr",
     ".sq",
@@ -113,10 +114,10 @@ def load_selected_files(selected_items, label_widget, plot_window_ref, control_p
         return None
 
 
-def get_valid_files(folder, extensions=VALID_EXTENSIONS):
+def get_valid_files(dir_path: Path, extensions: list[str] = VALID_EXTENSIONS) -> list[Path]:
     return sorted(
-        [os.path.join(folder, f) for f in os.listdir(folder) if any(f.lower().endswith(ext) for ext in extensions)],
-        key=lambda f: os.path.getmtime(f),
+        [f for f in dir_path.iterdir() if any(f.name.lower().endswith(ext) for ext in extensions)],
+        key=lambda f: f.stat().st_mtime,
         reverse=True,
     )
 

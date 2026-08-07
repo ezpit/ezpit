@@ -28,7 +28,7 @@ from scipy.spatial.distance import cdist
 _WARNED_MESSAGES = set()
 
 
-def _warn_once(message):
+def _warn_once(message: str) -> None:
     """Emit a warning the first time this exact message occurs."""
     if message in _WARNED_MESSAGES:
         return
@@ -46,7 +46,7 @@ def reset_warning_history():
     _WARNED_MESSAGES.clear()
 
 
-def load_atom_name_positions(file_path, valid_symbols):
+def load_atom_name_positions(file_path, valid_symbols) -> tuple[list[str], np.ndarray[int, int], np.dtype[np.float32]]:
     """
     [EN] Load atom names and (x, y, z) positions from an .xyz file.
 
@@ -177,37 +177,7 @@ def load_atom_name_positions(file_path, valid_symbols):
     return atom_names, atom_positions
 
 
-def load_atom_names(file_path):
-    """
-    database_atom_names = losa.load_atom_names(compton_aff_element_file).
-
-    print('database_atom_names = ', database_atom_names)
-    print all atom names in compton_element_only.txt
-    database_atom_names =  ['H', 'He', 'Li', 'Be',,,,,,,,,,,'U'].
-    """
-    with open(file_path) as f:
-        atom_list = [line.strip() for line in f.readlines() if line.strip() != ""]
-    return atom_list
-
-
-def load_scattering_factors(file_path):
-    """
-    [EN] Load scattering factor parameters (a, b, c...) from a file.
-
-    [KR] 파일에서 산란 인자 파라미터(a, b, c 등)를 불러옵니다.
-
-    Returns
-    -------
-        numpy.ndarray: [EN] 2D array of floats / [KR] 실수형 2차원 배열
-    """
-    with open(file_path) as f:
-        data = []
-        for line in f:
-            data.append([float(val) for val in line.strip().split("\t")])
-    return np.array(data)
-
-
-def parse_composition(composition):
+def parse_composition(composition: str | dict[str, float]):
     """
     [EN] Parse a composition string into a dictionary (EZPDF_GUI_3 helpers.py behaviour).
 
@@ -381,50 +351,7 @@ def convert_atom_names(composition):
     return [el for el, count in comp.items() for _ in range(int(count))]
 
 
-def get_scattering_factors(atom_names, database_atom_names, database_scat_factors):
-    """
-    [EN] Retrieve scattering factors for specific atoms from the database.
-
-    [KR] 데이터베이스에서 특정 원자들에 해당하는 산란 인자를 가져옵니다.
-
-    Returns
-    -------
-        numpy.ndarray: [EN] Array of scattering parameters / [KR] 산란 파라미터 배열
-    """
-    scat_factors = []
-    for atom in atom_names:
-        if atom in database_atom_names:
-            idx = database_atom_names.index(atom)
-            scat_factors.append(database_scat_factors[idx])
-        else:
-            raise ValueError(f"There is no atom {atom} in database")
-    return np.asarray(scat_factors)
-
-
-def get_compton_scattering_factors(atom_names, database_atom_names, database_scat_factors):
-    """
-    [EN] Retrieve Compton scattering factors and atomic numbers.
-
-    [KR] 콤프턴 산란 인자와 원자 번호를 가져옵니다.
-
-    Returns
-    -------
-        scat_factors (numpy.ndarray): [EN] Compton parameters / [KR] 콤프턴 파라미터
-        atomic_number (list): [EN] List of atomic numbers (integers) / [KR] 원자 번호 리스트 (정수)
-    """
-    scat_factors = []
-    atomic_number = []
-    for atom in atom_names:
-        if atom in database_atom_names:
-            idx = database_atom_names.index(atom)
-            scat_factors.append(database_scat_factors[idx])
-            atomic_number.append(idx + 1)
-        else:
-            raise ValueError(f"There is no atom {atom} in database")
-    return np.asarray(scat_factors), atomic_number
-
-
-def group_atoms(atom_names):
+def group_atoms(atom_names: list[str]) -> tuple[list[str], np.ndarray[tuple[int], np.dtype[np.int64]], np.ndarray[tuple[int], np.dtype[np.int64]]]:
     """
     [EN] Group identical atoms and count their occurrences.
 
@@ -443,7 +370,7 @@ def group_atoms(atom_names):
     return atom_uni_names, np.asarray(atom_counts), np.asarray(atom_indices)
 
 
-def make_folder(file_path):
+def make_folder(file_path: str) -> None:
     """
     [EN] Create a directory if it does not exist.
 
@@ -496,12 +423,9 @@ def create_atom_distance_matrix(atom_positions):
     """
     # [EN] Calculate distance between every pair of points using scipy.spatial.distance.cdist
     # [KR] scipy.spatial.distance.cdist를 사용하여 모든 점 쌍 사이의 거리를 계산합니다.
-    distance_matrix = cdist(atom_positions, atom_positions)
+    return cdist(atom_positions, atom_positions)
 
-    return distance_matrix
-
-
-def __cal_fi(scat_values, q):
+def __cal_fi(scat_values: list[float], q: float | np.ndarray[tuple[int], np.dtype[np.float32]]) -> float | np.ndarray[tuple[int], np.dtype[np.float32]]:
     """
     [EN] Calculate atomic form factor f(q) using 5-Gaussian approximation.
 
