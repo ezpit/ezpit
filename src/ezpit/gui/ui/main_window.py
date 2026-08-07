@@ -27,6 +27,8 @@ from ezpit.gui.controller.graph_controller import (
 from .control_panel import ControlPanel
 from .file_panel import FilePanel
 
+from ezpit import __version__, __build_date__  # Import version and build date
+
 
 def resource_path(relative_path):
     """Return the absolute path to a bundled resource.
@@ -515,8 +517,10 @@ class PDFApp(QMainWindow):
 
     def show_about_dialog(self):
         # About Dialog Text - 프로그램 정보 텍스트
-        about_text = """
-        <b>EZPDF (Easy(EZ) Pair Distribution Function (PDF) Version 1.0.2, August 4, 2026)</b>
+
+        build_date_string = ", " + __build_date__.replace("T", " ").replace("+", " UTC+").replace("-", " UTC-") if __build_date__ != "unknown" else "unknown"
+        about_text = f"""
+        <b>EZPDF (Easy(EZ) Pair Distribution Function (PDF) v{__version__}{build_date_string})</b>
         <p>: An easy-to-use software developed by the NSLS-II team for processing X-ray
         diffraction/scattering data and generating pair distribution function (PDF) spectra.</p>
 
@@ -526,6 +530,7 @@ class PDFApp(QMainWindow):
         Cheng-Hung Lin</b><br>
         Ajith Pattammattel</b><br>
         Nghia Vo</b><br>
+        Jakub Wlodek</b><br>
         Hui Zhong<br><br>
         <b>Northwestern University:</b><br>
         Dustin Zhao<br><br>

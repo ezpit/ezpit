@@ -217,3 +217,8 @@ EZPDF_GUI_version/build-env/
 EZPDF_GUI_version/build/
 EZPDF_GUI_version/dist/
 EZPDF_GUI_exe_version/
+
+# Don't include dynamically generated version file
+# from build in revision control
+_version.py
+_build_date.py

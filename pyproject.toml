@@ -46,6 +46,12 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "vcs"
 
+[tool.hatch.build.hooks.vcs]
+version-file = "src/ezpit/_version.py"
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
 [dependency-groups]
 dev = [
     "import-linter>=2.13",
