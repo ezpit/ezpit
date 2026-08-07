@@ -131,7 +131,7 @@ def parse_composition(composition: str | dict[str, float]) -> dict[str, float]:
     return composition_dict
 
 
-def composition_weights(composition):
+def composition_weights(composition: str | dict[str, float]) -> tuple[list[str], np.ndarray[tuple[int], np.dtype[np.float64]]]:
     """
     [EN] Turn a composition dict into unique element names and their amounts.
 

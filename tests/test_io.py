@@ -1,5 +1,7 @@
+import numpy as np
 import pytest
-from ezpit.io import parse_composition
+
+from ezpit.io import composition_weights, parse_composition
 
 
 @pytest.mark.parametrize(
@@ -25,7 +27,7 @@ from ezpit.io import parse_composition
         ({"Co": 2, "O": 1}, {"Co": 2, "O": 1}),
     ],
 )
-def test_parse_composition_valid(composition, expected):
+def test_parse_composition_valid(composition: str | dict[str, float], expected: dict[str, float]):
     result = parse_composition(composition)
     assert dict(result) == expected
 
@@ -50,7 +52,7 @@ def test_parse_composition_keeps_fractions_as_float():
         None,  # None
     ],
 )
-def test_parse_composition_empty_raises(composition):
+def test_parse_composition_empty_raises(composition: str | None):
     with pytest.raises(ValueError, match="must not be empty"):
         parse_composition(composition)
 
@@ -63,7 +65,7 @@ def test_parse_composition_empty_raises(composition):
         "Cl1-",  # anion with explicit charge
     ],
 )
-def test_parse_composition_rejects_ions(composition):
+def test_parse_composition_rejects_ions(composition: str):
     with pytest.raises(ValueError, match="ion"):
         parse_composition(composition)
 
@@ -76,6 +78,57 @@ def test_parse_composition_rejects_ions(composition):
         "Co1.2.3",  # more than one decimal point in a count
     ],
 )
-def test_parse_composition_invalid_raises(composition):
+def test_parse_composition_invalid_raises(composition: str):
     with pytest.raises(ValueError):
         parse_composition(composition)
+
+
+@pytest.mark.parametrize(
+    ("composition", "expected_names", "expected_weights"),
+    [
+        # Compact integer string.
+        ("Co38O119P1", ["Co", "O", "P"], [38.0, 119.0, 1.0]),
+        # Count of 1 omitted.
+        ("SiO2", ["Si", "O"], [1.0, 2.0]),
+        # Fractional amounts are kept as floats.
+        ("Li0.2Co0.8", ["Li", "Co"], [0.2, 0.8]),
+        # Repeated elements are summed.
+        ("CoOCo", ["Co", "O"], [2.0, 1.0]),
+        # Dict input.
+        ({"Fe": 2, "O": 3}, ["Fe", "O"], [2.0, 3.0]),
+    ],
+)
+def test_composition_weights_valid(
+    composition: str | dict[str, float],
+    expected_names: list[str],
+    expected_weights: list[float],
+):
+    names, weights = composition_weights(composition)
+    assert names == expected_names
+    assert isinstance(weights, np.ndarray)
+    assert weights.dtype == np.float64
+    np.testing.assert_allclose(weights, expected_weights)
+
+
+def test_composition_weights_order_matches_names():
+    names, weights = composition_weights("Co2O1P3")
+    assert names == ["Co", "O", "P"]
+    np.testing.assert_allclose(weights, [2.0, 1.0, 3.0])
+
+
+@pytest.mark.parametrize("composition", ["", "   ", {}])
+def test_composition_weights_empty_raises(composition: str | dict[str, float]):
+    with pytest.raises(ValueError, match="must not be empty"):
+        composition_weights(composition)
+
+
+@pytest.mark.parametrize(
+    "composition",
+    [
+        {"Co": 0},  # zero amount
+        {"Co": -1},  # negative amount
+    ],
+)
+def test_composition_weights_nonpositive_raises(composition: dict[str, float]):
+    with pytest.raises(ValueError, match="positive"):
+        composition_weights(composition)
