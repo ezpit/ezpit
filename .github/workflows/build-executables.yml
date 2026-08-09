@@ -1,0 +1,95 @@
+name: Build release executables
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            ext: ""
+            sep: ":"
+          - os: windows-latest
+            platform: windows
+            ext: ".exe"
+            sep: ";"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          # Full history + tags so hatch-vcs can derive the version.
+          fetch-depth: 0
+
+      # PySide6/Qt needs these shared libraries to import during the
+      # PyInstaller analysis step on the headless Linux runner.
+      - name: Install Qt system libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 libgl1 libxkbcommon0 libdbus-1-3 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --extra gui --group dev
+
+      - name: Determine version
+        shell: bash
+        run: |
+          echo "VERSION=$(uv run python -c 'from importlib.metadata import version; print(version("ezpit"))')" >> "$GITHUB_ENV"
+
+      - name: Build ezpdf-gui
+        shell: bash
+        run: |
+          uv run pyinstaller --noconfirm --clean --onefile --windowed \
+            --name ezpdf-gui \
+            --icon src/ezpit/gui/ui/icons/EZPDF.ico \
+            --add-data "src/ezpit/gui/ui/icons${{ matrix.sep }}ui/icons" \
+            src/ezpit/gui/main.py
+
+      - name: Build wh-smooth
+        shell: bash
+        run: |
+          uv run pyinstaller --noconfirm --clean --onefile --windowed \
+            --name wh-smooth \
+            --icon src/ezpit/WH.ico \
+            --add-data "src/ezpit/WH.ico${{ matrix.sep }}." \
+            --add-data "src/ezpit/WHsmooth.png${{ matrix.sep }}." \
+            src/ezpit/wh_smooth.py
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          cp "dist/ezpdf-gui${{ matrix.ext }}" "artifacts/ezpdf-gui-${VERSION}-${{ matrix.platform }}${{ matrix.ext }}"
+          cp "dist/wh-smooth${{ matrix.ext }}" "artifacts/wh-smooth-${VERSION}-${{ matrix.platform }}${{ matrix.ext }}"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ezpit-${{ env.VERSION }}-${{ matrix.platform }}
+          path: artifacts/*
+
+      - name: Attach executables to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*

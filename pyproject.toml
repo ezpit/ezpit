@@ -1,0 +1,161 @@
+[project]
+name = "ezpit"
+dynamic = ["version"]
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Gihan Kwon" },
+    # Contributors
+    # Brookhaven National Laboratory
+    { name = "Cheng-Hung Lin" },
+    { name = "Joshua Lynch" },
+    { name = "Ajith Pattammattel" },
+    { name = "Nghia Vo" },
+    { name = "Jakub Wlodek" },
+    { name = "Hui Zhong" },
+    # Northwestern University
+    { name = "Dustin Zhao" },
+    # Stony Brook University
+    { name = "Yichen Liu" },
+    { name = "Dongyoon Lee" },
+]
+requires-python = ">=3.13"
+dependencies = [
+    "numpy>=2.5.1",
+    "scipy>=1.18.0",
+]
+
+[project.scripts]
+ezpdf-wh-smooth = "ezpit.wh_smooth:main"
+ezpdf-gui = "ezpit.gui.main:main"
+
+[project.optional-dependencies]
+gui = [
+    "pandas>=3.0.5",
+    "pyqtgraph>=0.14.0",
+    "pyside6>=6.11.1",
+]
+examples = [
+    "matplotlib>=3.11.1",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/ezpit/_version.py"
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+# Bundle the GUI icons/images as package data so they are always shipped in the
+# sdist and wheel, regardless of VCS/.gitignore state.
+[tool.hatch.build.targets.wheel]
+artifacts = [
+    "*.ico",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.svg",
+]
+
+[tool.hatch.build.targets.sdist]
+artifacts = [
+    "*.ico",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.svg",
+]
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.13",
+    "matplotlib>=3.11.1",
+    "pandas>=3.0.5",
+    "pre-commit>=4.6.1",
+    "pyinstaller>=6.21.0",
+    "pyqtgraph>=0.14.0",
+    "pyside6>=6.11.1",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.1",
+    "ty>=0.0.69",
+]
+
+
+[tool.importlinter]
+root_package = "ezpit"
+
+[tool.pytest.ini_options]
+# Run pytest with all our checkers, and don't spam us with massive tracebacks on error
+addopts = """
+    --tb=native -vv --strict-markers --doctest-modules
+    --doctest-glob="*.rst" --doctest-glob="*.md"
+    --ignore=examples
+    """
+# https://iscinumpy.gitlab.io/post/bound-version-constraints/#watch-for-warnings
+filterwarnings = [
+    "error",
+    "ignore:tagMap is deprecated:DeprecationWarning:ldap3",
+    "ignore:typeMap is deprecated:DeprecationWarning:ldap3",
+]
+# Doctest python code in docs, python code in src docstrings, test functions in tests
+testpaths = "docs src tests"
+log_format = "%(asctime)s,%(msecs)03d %(levelname)s (%(threadName)s) %(message)s"
+log_date_format = "%H:%M:%S"
+
+
+[tool.ruff]
+line-length = 120
+# Large generated data tables; kept in a hand-aligned table-like layout for
+# readability, so exclude from formatting/linting. force-exclude ensures the
+# file is skipped even when passed explicitly (e.g. by pre-commit).
+extend-exclude = ["src/ezpit/elem_tables.py"]
+force-exclude = true
+lint.select = [
+    "B",       # flake8-bugbear - https://docs.astral.sh/ruff/rules/#flake8-bugbear-b
+    "C4",      # flake8-comprehensions - https://docs.astral.sh/ruff/rules/#flake8-comprehensions-c4
+    "E",       # pycodestyle errors - https://docs.astral.sh/ruff/rules/#error-e
+    "F",       # pyflakes rules - https://docs.astral.sh/ruff/rules/#pyflakes-f
+    "N",       # pep8-naming - https://docs.astral.sh/ruff/rules/#pep8-naming-n
+    "W",       # pycodestyle warnings - https://docs.astral.sh/ruff/rules/#warning-w
+    "I",       # isort - https://docs.astral.sh/ruff/rules/#isort-i
+    "UP",      # pyupgrade - https://docs.astral.sh/ruff/rules/#pyupgrade-up
+    "SLF",     # self - https://docs.astral.sh/ruff/settings/#lintflake8-self
+    "PLC2701", # private import - https://docs.astral.sh/ruff/rules/import-private-name/
+    "LOG015",  # root logger call - https://docs.astral.sh/ruff/rules/root-logger-call/
+    "S101",    # assert - https://docs.astral.sh/ruff/rules/assert/
+    "D",       # docstring - https://docs.astral.sh/ruff/rules/#pydocstyle-d
+]
+lint.ignore = [
+    "D107", # We squash __init__ docstrings into the class docstring
+    "D102", # We don't need to override docstrings that are inherited from abstract methods
+    # Documentation is a work in progress; don't require docstrings everywhere yet.
+    "D100", # undocumented public module
+    "D101", # undocumented public class
+    "D103", # undocumented public function
+    "D104", # undocumented public package
+    "D401", # docstring first line should be imperative mood (many are descriptive/bilingual)
+    # Scientific/domain notation: names follow the physics they represent
+    # (I(q), S(q), F(q), G(r), Q, Z, the D^T*D penalty matrix, etc.), and Qt
+    # subclasses must match the framework's camelCase method names.
+    "N802", # function name should be lowercase (cal_Sq, cal_Gr_fft, Qt overrides)
+    "N803", # argument name should be lowercase (Sq, Q, Q_max, is_Fq)
+    "N806", # variable in function should be lowercase (Iq, Fq, list_Sq, Z_k)
+    "N816", # mixedCase global (module-level Sq, Iq, Fq in example scripts)
+]
+lint.preview = true # so that preview mode PLC2701 is enabled
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# By default, private member access is allowed in tests
+# See https://github.com/DiamondLightSource/python-copier-template/issues/154
+# Remove this line to forbid private member access in tests
+"tests/**/*" = ["SLF001", "S101", "D"]
