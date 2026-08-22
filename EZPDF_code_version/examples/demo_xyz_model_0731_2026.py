@@ -22,7 +22,7 @@ input_base = "C:/Users/gkwon/Pycharmprojects/ezpit/EZPDF_code_version/data/"
 # [EN] Input files: G(r) experimental data (for comparison) and XYZ structure file
 # [KR] 입력 파일: 비교용 G(r) 데이터와 이론적 계산을 위한 구조 파일(.xyz)
 input_exp_file = input_base + '/sum_A_CoPiITO_110320-1_Nsum5.chi_integral.gr'
-atom_xyz_file = input_base + "/Iaa-Iaa_solute_0001.xyz" #Iaa-Iaa_solute_0001.xyz" #5IrC_r5a-1Ir.xyz" #5IrC_r5a-1Ir.xyz"  #Ni(OH)2-109391-ICSD-10x10x1.xyz"
+atom_xyz_file = input_base + "/5IrC_r5a-1Ir.xyz" #5IrC_r5a-1Ir.xyz"  #Ni(OH)2-109391-ICSD-10x10x1.xyz"
 
 # [EN] Database files for atomic scattering factors
 # [KR] 원자 산란 인자 정보를 담은 데이터베이스 파일 경로
