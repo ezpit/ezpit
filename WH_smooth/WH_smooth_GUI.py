@@ -3201,6 +3201,27 @@ class WHRangeSmoother(QMainWindow):
             self._current_loaded_name = os.path.basename(path)
             self._current_loaded_path = path
             self._sample_hover_preview_active = False
+
+            # Auto-select the data type from the hovered file's extension /
+            # name, matching the behaviour of a real load, so hovering to a
+            # different file type updates the I(q)/S(q)/F(q)/G(r) selection.
+            _base = os.path.basename(path).lower()
+            _stem, _ext = os.path.splitext(_base)
+            _type_map = {'.sq': 'S(q)', '.fq': 'F(q)',
+                         '.iq': 'I(q)', '.chi': 'I(q)', '.gr': 'G(r)'}
+            _detected = None
+            if _ext in _type_map:
+                _detected = _type_map[_ext]
+            elif 'sq' in _stem or 's(q)' in _stem:
+                _detected = 'S(q)'
+            elif 'fq' in _stem or 'f(q)' in _stem:
+                _detected = 'F(q)'
+            elif 'gr' in _stem or 'g(r)' in _stem:
+                _detected = 'G(r)'
+            if _detected is not None:
+                for _btn in self._type_bg.buttons():
+                    _btn.setChecked(_btn.text() == _detected)
+
             snap = self._build_snapshot()
             self._remember_confirmed_plot(snap, path=path)
 
