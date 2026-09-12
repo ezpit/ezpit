@@ -1,5 +1,5 @@
 """
-wh_range_smoother.py v1.0.2 (08/21/2026)
+wh_range_smoother.py v1.0.3 (09/12/2026)
 ────────────────────
 Standalone GUI — Whittaker-Henderson smoothing over selected q ranges.
 
@@ -30,12 +30,12 @@ Author      : Gihan Kwon
 Affiliation : National Synchrotron Light Source II (NSLS-II),
               Brookhaven National Laboratory, Upton, NY, USA
 Contact     : gkwon@bnl.gov
-Version     : 1.0.2
+Version     : 1.0.3
 License     : (add your license here)
 """
 
 __author__ = "Gihan Kwon"
-__version__ = "1.0.2"
+__version__ = "1.0.3"
 
 import sys
 import os
@@ -1759,13 +1759,13 @@ class WHRangeSmoother(QMainWindow):
 
     def _show_about_dialog(self):
         about_text = """
-        <b>WH Smooth (Whittaker&ndash;Henderson Range Smoother) Version 1.0.2</b>
+        <b>WH Smooth (Whittaker&ndash;Henderson Range Smoother) Version 1.0.3</b>
         <p>: A standalone tool for Whittaker&ndash;Henderson smoothing over
         selected q ranges of I(q), S(q), F(q), or G(r) data, developed by the
         NSLS-II team.</p>
 
         <p><b>Release date:</b><br>
-        08/21/2026</p>
+        09/12/2026</p>
 
         <p><b>Author:</b><br>
         <b>National Synchrotron Light Source II:</b><br>
@@ -2426,6 +2426,9 @@ class WHRangeSmoother(QMainWindow):
             self.y = self._y_raw.copy()
             self.y_smoothed = None
             self._refresh_active_window(reset_view=not getattr(self, "_preserve_hover_view", False))
+            # Background is optional — still smooth the raw sample so a smoothed
+            # line is shown even with no background.
+            self._auto_reapply()
             return
         try:
             alpha = float(self.alpha_edit.text())
@@ -2450,6 +2453,9 @@ class WHRangeSmoother(QMainWindow):
         self.statusBar().showMessage(
             f"Background subtracted  |  alpha = {alpha}  |  "
             f"Bkg: {os.path.basename(bkg_path)}")
+        # Recompute the smoothing on the (subtracted) curve so the smoothed
+        # line updates — including when alpha is 0 (curve equals the raw data).
+        self._auto_reapply()
 
     def _pick_reference(self):
         """Load an optional reference curve for visual comparison."""
@@ -3201,27 +3207,6 @@ class WHRangeSmoother(QMainWindow):
             self._current_loaded_name = os.path.basename(path)
             self._current_loaded_path = path
             self._sample_hover_preview_active = False
-
-            # Auto-select the data type from the hovered file's extension /
-            # name, matching the behaviour of a real load, so hovering to a
-            # different file type updates the I(q)/S(q)/F(q)/G(r) selection.
-            _base = os.path.basename(path).lower()
-            _stem, _ext = os.path.splitext(_base)
-            _type_map = {'.sq': 'S(q)', '.fq': 'F(q)',
-                         '.iq': 'I(q)', '.chi': 'I(q)', '.gr': 'G(r)'}
-            _detected = None
-            if _ext in _type_map:
-                _detected = _type_map[_ext]
-            elif 'sq' in _stem or 's(q)' in _stem:
-                _detected = 'S(q)'
-            elif 'fq' in _stem or 'f(q)' in _stem:
-                _detected = 'F(q)'
-            elif 'gr' in _stem or 'g(r)' in _stem:
-                _detected = 'G(r)'
-            if _detected is not None:
-                for _btn in self._type_bg.buttons():
-                    _btn.setChecked(_btn.text() == _detected)
-
             snap = self._build_snapshot()
             self._remember_confirmed_plot(snap, path=path)
 
@@ -3760,11 +3745,7 @@ class WHRangeSmoother(QMainWindow):
         if self.y is None:
             QMessageBox.warning(self, "No Data", "Load a file first.")
             return
-        # I(q) mode: must subtract background first
-        if self._data_type == "I(q)" and self._y_bkg_scaled is None:
-            QMessageBox.warning(self, "Background Required",
-                "I(q) mode: add and select a background file first (Section 2).")
-            return
+        # Background subtraction is optional; smooth raw I(q) when none is set.
         ranges = self._get_ranges()
 
         # No ranges defined → use Section 4 defaults to WH-smooth the full q range
@@ -3860,11 +3841,10 @@ class WHRangeSmoother(QMainWindow):
             return
         if self.y is None:
             return
-        # I(q) needs a background subtracted first; until then just show the
-        # region overlay.
-        if self._data_type == "I(q)" and self._y_bkg_scaled is None:
-            self._refresh_active_window()
-            return
+        # Background subtraction is optional. If a background is loaded we
+        # smooth the subtracted curve; if not, we smooth the raw I(q) directly.
+        # (Previously I(q) without a background skipped smoothing entirely,
+        # which left no smoothed line on the plot.)
         ranges = self._get_ranges()
         full_range = False
         if not ranges:
