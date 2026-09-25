@@ -94,7 +94,7 @@ def get_fq(Sq, qmin, qmax):
     return cal_fq(qmin, qmax, Sq)
 
 
-def get_gr(q_range, Sq_or_Fq, control_panel, xyz_data=False, is_Fq=False):
+def get_gr(q_range, Sq_or_Fq, control_panel, xyz_data=False, is_Fq=False, use_lorch=False):
     if xyz_data:
         cal_controls = control_panel.get_cal_parameters()
         rmin = float(cal_controls['rmin'])
@@ -106,7 +106,7 @@ def get_gr(q_range, Sq_or_Fq, control_panel, xyz_data=False, is_Fq=False):
         rmax = float(basic_controls['rmax'])
         rstep = float(basic_controls['rstep'])
 
-    return cal_expGr_fft(q_range, Sq_or_Fq, rmin, rmax, rstep, is_Fq=is_Fq)
+    return cal_expGr_fft(q_range, Sq_or_Fq, rmin, rmax, rstep, is_Fq=is_Fq, use_lorch=use_lorch)
 
 
 def get_smooth_whittaker(y, control_panel):

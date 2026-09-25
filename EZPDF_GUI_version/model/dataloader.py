@@ -7,6 +7,23 @@ import json
 from model.extensions import run_transforms
 from PySide6.QtWidgets import QMessageBox
 
+# Keys returned by get_graph_data(). To expose a new curve/array to the plot
+# window, add its name here and set it in the relevant return below -- nothing
+# else needs to change (callers use dict access, not positional unpacking).
+GRAPH_DATA_KEYS = [
+    "xs", "ys", "bkg_x", "bkg_y", "raw_x", "raw_y",
+    "list_Sq", "Fq_smoothed", "mean_sq_fi", "sq_mean_fi",
+    "r_smoothed", "G_smoothed", "gr_lorch", "gr_smoothed_lorch",
+]
+
+
+def _pack(**kw):
+    """Build the graph-data dict, defaulting any unset key to None."""
+    d = {k: None for k in GRAPH_DATA_KEYS}
+    d.update(kw)
+    return d
+
+
 def get_graph_data(path, extension, control_panel, multiple_graphs=False):
     if extension in ['.iq', '.chi', '.xy', '.dat', '.txt', '.sq', '.fq', '.gr', '.caliq', '.calfq', '.calsq', '.calgr', '.compton']:
         x_raw_input, y_raw_input = extract_data(path)
@@ -22,6 +39,8 @@ def get_graph_data(path, extension, control_panel, multiple_graphs=False):
         sq_mean_fi = None
         r_smoothed = None
         G_smoothed = None
+        G_lorch = None
+        G_smoothed_lorch = None
 
         param_source = control_panel.get_pdf_parameters()
         qmin = float(param_source['qmin'])
@@ -39,6 +58,14 @@ def get_graph_data(path, extension, control_panel, multiple_graphs=False):
 
                 Fq_smoothed = get_smooth_whittaker(list_Fq, control_panel)
                 r_smoothed, G_smoothed = get_gr(q_range, Fq_smoothed, control_panel, is_Fq=True)
+
+                # Lorch-modified variants (share the same r grid as above):
+                #   G_lorch          = raw F(q)      with Lorch
+                #   G_smoothed_lorch = smoothed F(q) with Lorch
+                # Only the experimental path gets these; xyz/CAL is unchanged.
+                _, G_lorch = get_gr(q_range, norm_list_Sq, control_panel, use_lorch=True)
+                _, G_smoothed_lorch = get_gr(q_range, Fq_smoothed, control_panel,
+                                             is_Fq=True, use_lorch=True)
 
                 xs = [q_range, q_range, q_range, r_orig]
                 ys = [list_Iq, norm_list_Sq, list_Fq, G_orig]
@@ -60,7 +87,8 @@ def get_graph_data(path, extension, control_panel, multiple_graphs=False):
                 msg.setText("Failed to compute structure function or G(r).")
                 msg.setInformativeText(str(e))
                 msg.exec()
-                return xs, ys, bkg_x, bkg_y, x_raw_input, y_raw_input, None, None, None, None, None, None
+                return _pack(xs=xs, ys=ys, bkg_x=bkg_x, bkg_y=bkg_y,
+                             raw_x=x_raw_input, raw_y=y_raw_input)
 
         elif extension in ['.gr', '.calgr']:
             xs[3] = x
@@ -113,16 +141,24 @@ def get_graph_data(path, extension, control_panel, multiple_graphs=False):
         else:
             x, y = x_raw_input, y_raw_input
 
-        return xs, ys, bkg_x, bkg_y, x, y, list_Sq, Fq_smoothed, mean_sq_fi, sq_mean_fi, r_smoothed, G_smoothed
+        return _pack(xs=xs, ys=ys, bkg_x=bkg_x, bkg_y=bkg_y, raw_x=x, raw_y=y,
+                     list_Sq=list_Sq, Fq_smoothed=Fq_smoothed,
+                     mean_sq_fi=mean_sq_fi, sq_mean_fi=sq_mean_fi,
+                     r_smoothed=r_smoothed, G_smoothed=G_smoothed,
+                     gr_lorch=G_lorch, gr_smoothed_lorch=G_smoothed_lorch)
     else:
         atom_names, atom_positions = load_atom_name_positions(path)
         q_range, list_Iq, list_Sq, list_Fq = get_xyz_graphs(atom_names, atom_positions, control_panel)
         r, G = get_gr(q_range, list_Sq, control_panel, xyz_data=True)
 
+        # xyz/CAL: no smoothing. Only the Lorch-off (raw) and Lorch-on G(r) are
+        # provided, so the plot window shows just those two variants.
+        _, G_lorch = get_gr(q_range, list_Sq, control_panel, xyz_data=True, use_lorch=True)
+
         xs = [q_range, q_range, q_range, r]
         ys = [list_Iq, list_Sq, list_Fq, G]
 
-        return xs, ys, None, None, None, None, list_Sq, None, None, None, None, None
+        return _pack(xs=xs, ys=ys, list_Sq=list_Sq, gr_lorch=G_lorch)
 
 
 def get_xyz_data(path):

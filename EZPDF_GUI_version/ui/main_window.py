@@ -501,7 +501,7 @@ class PDFApp(QMainWindow):
     def show_about_dialog(self):
         # About Dialog Text - 프로그램 정보 텍스트
         about_text = """
-        <b>EZPDF (Easy(EZ) Pair Distribution Function (PDF) Version 1.0.2, August 4, 2026)</b>
+        <b>EZPDF (Easy(EZ) Pair Distribution Function (PDF) Version 1.0.3, September 25, 2026)</b>
         <p>: An easy-to-use software developed by the NSLS-II team for processing X-ray
         diffraction/scattering data and generating pair distribution function (PDF) spectra.</p>
 
@@ -612,6 +612,16 @@ class PDFApp(QMainWindow):
 
         # Reset current UI state for new project - 새로운 프로젝트를 위해 현재 UI 상태 초기화
         self.file_panel.file_list.clear()
+        # Reset the file panel's sort state so the project's saved order is
+        # shown exactly, not re-sorted by a previously active header sort or a
+        # stale load-order list.
+        try:
+            self.file_panel._sort_col = None
+            self.file_panel._sort_dir = 'asc'
+            self.file_panel._load_order = []
+            self.file_panel.file_list.header().setSortIndicatorShown(False)
+        except Exception:
+            pass
         self.loaded_files.clear()
         if self.plot_window:
             self.plot_window.close()
@@ -621,7 +631,8 @@ class PDFApp(QMainWindow):
         # Restore file list using saved paths - 저장된 경로를 사용하여 파일 리스트 복원
         file_paths = project_data.get("loaded_files", [])
         if file_paths:
-            self.populate_file_list(file_paths, is_folder=False)
+            # Preserve the exact order saved in the project file.
+            self.populate_file_list(file_paths, is_folder=False, preserve_order=True)
             self.label.setText(f"Loaded {len(file_paths)} files from project.")
         else:
             self.label.setText("Project loaded (no files).")
@@ -661,7 +672,7 @@ class PDFApp(QMainWindow):
             self._settings.sync()  # Force immediate write to disk
             self.populate_file_list(files, is_folder=False)
 
-    def populate_file_list(self, source, is_folder=True):
+    def populate_file_list(self, source, is_folder=True, preserve_order=False):
         # Update UI file list widget - 파일 리스트 UI 업데이트
         add_files_to_list_widget(
             self.file_panel.file_list,
@@ -669,7 +680,8 @@ class PDFApp(QMainWindow):
             source,
             self.loaded_files,
             is_folder=is_folder,
-            max_name_length=0
+            max_name_length=0,
+            preserve_order=preserve_order
         )
         try:
             # Resize columns to fit content - 가시성을 위해 헤더 열 조정

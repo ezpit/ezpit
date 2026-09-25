@@ -395,22 +395,6 @@ class ControlPanel(QWidget):
                                                          factor=10,
                                                          with_buttons=True)
 
-        self.pdf_qstep_input = QLineEdit()
-        self.pdf_qstep_input.setText("0.01")
-        self.pdf_qstep_input.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.pdf_qstep_input.setPlaceholderText("0.01")
-        self.pdf_qstep_input.editingFinished.connect(self.send_update)
-
-        qstep_layout = QHBoxLayout()
-        qstep_layout.addWidget(self.pdf_qstep_input, 1)
-
-        default_label = QLabel("Default: 0.01")
-        default_label.setStyleSheet("color: #666; margin-left: 5px; font-style: italic; font-weight: bold;")
-
-        qstep_layout.addWidget(default_label, 0)
-
-        pdf_layout.addRow("q_step:", qstep_layout)
-
         self.qmax_slider, self.qmax_input = add_slider_field("q_max:", 0.0, 30, 3, 30.000, pdf_layout,
                                                              with_buttons=True)
         self.qmin_slider, self.qmin_input = add_slider_field("q_min:", 0.0, 2, 3, 0.000, pdf_layout, with_buttons=True)
@@ -494,7 +478,6 @@ class ControlPanel(QWidget):
         self.r_step_input.setValidator(float_validator)
         self.lambda_fq_input.setValidator(float_validator)
 
-        self.pdf_qstep_input.setValidator(float_validator)
 
         self.r_min_input.editingFinished.connect(self.on_gr_inputs_finished)
         self.r_max_input.editingFinished.connect(self.on_gr_inputs_finished)
@@ -506,7 +489,6 @@ class ControlPanel(QWidget):
 
         def reset_fields():
             self.bg_slider.setValue(int(round(0.00000 * 100000)))
-            self.pdf_qstep_input.setText("0.01")
             self.qmax_slider.setValue(int(round(30.0 * 1000)))
             self.qmin_slider.setValue(int(round(0.0 * 1000)))
             self.poly_order_slider.setValue(int(round(9.000 * 1000)))
@@ -561,6 +543,13 @@ class ControlPanel(QWidget):
         self.cal_qmax_slider.valueChanged.connect(self.send_update)
         self.cal_qmin_slider.valueChanged.connect(self.send_update)
 
+        # q_step for the .xyz calculation. Without this the calculation fell
+        # back to a hard-coded 0.05, so the saved I(q)/S(q)/F(q) always had a
+        # 0.05 q-spacing regardless of what the user wanted.
+        self.cal_qstep_input = QLineEdit()
+        self.cal_qstep_input.setAlignment(Qt.AlignmentFlag.AlignRight)
+        cal_layout.addRow("q_step:", self.cal_qstep_input)
+
         self.cal_r_min_input = QLineEdit()
         cal_layout.addRow("r_min:", self.cal_r_min_input)
 
@@ -576,23 +565,32 @@ class ControlPanel(QWidget):
         self.cal_r_min_input.setValidator(float_validator)
         self.cal_r_max_input.setValidator(float_validator)
         self.cal_r_step_input.setValidator(float_validator)
+        self.cal_qstep_input.setValidator(float_validator)
 
         self.cal_r_min_input.setText("0")
         self.cal_r_max_input.setText("30")
         self.cal_r_step_input.setText("0.01")
+        self.cal_qstep_input.setText("0.01")
 
         self.cal_r_min_input.editingFinished.connect(self.on_gr_inputs_finished)
         self.cal_r_max_input.editingFinished.connect(self.on_gr_inputs_finished)
         self.cal_r_step_input.editingFinished.connect(self.on_gr_inputs_finished)
+        # q_step changes the q-axis, so a full recalculation is needed.
+        self.cal_qstep_input.editingFinished.connect(self.send_update)
 
         reset_btn = QPushButton("Reset")
 
         def reset_fields():
             self.cal_qmax_slider.setValue(int(round(30.0 * 1000)))
             self.cal_qmin_slider.setValue(int(round(0.0 * 1000)))
+            self.cal_qstep_input.setText("0.01")
             self.cal_r_min_input.setText("0")
             self.cal_r_max_input.setText("30")
             self.cal_r_step_input.setText("0.01")
+            # Slider setValue only recomputes when the value actually changes,
+            # so force an update here — otherwise resetting q_step/r_step alone
+            # would leave the plot showing the previous calculation.
+            self.send_update()
 
         reset_btn.clicked.connect(reset_fields)
         reset_btn.setFixedWidth(80)
@@ -723,7 +721,6 @@ class ControlPanel(QWidget):
     def get_pdf_parameters(self):
         return {
             "bg": self.bg_slider.value() / 100000,
-            "qstep": self.pdf_qstep_input.text(),
             "qmax": self.qmax_slider.value() / 1000,
             "qmin": self.qmin_slider.value() / 1000,
             "poly_order": self.poly_order_input.text(),
@@ -962,6 +959,7 @@ class ControlPanel(QWidget):
             return {
                 "qmax": self.cal_qmax_input.text(),
                 "qmin": self.cal_qmin_input.text(),
+                "qstep": self.cal_qstep_input.text(),
                 "rmin": self.cal_r_min_input.text(),
                 "rmax": self.cal_r_max_input.text(),
                 "rstep": self.cal_r_step_input.text(),
@@ -1074,7 +1072,6 @@ class ControlPanel(QWidget):
         bg = float(params["bg"]) if "bg" in params else current_bg
         self.bg_slider.setValue(int(round(bg * 100000)))
 
-        self.pdf_qstep_input.setText(str(params["qstep"]) if "qstep" in params else self.pdf_qstep_input.text())
 
         current_qmax = self.qmax_slider.value() / 1000.0
         qmax = float(params["qmax"]) if "qmax" in params else current_qmax
@@ -1105,9 +1102,12 @@ class ControlPanel(QWidget):
         qmin = float(params.get("qmin", 0.1))
         self.cal_qmin_slider.setValue(int(round(qmin * 1000)))
 
+        self.cal_qstep_input.setText(str(params.get("qstep", "0.01")))
         self.cal_r_min_input.setText(params.get("rmin", "0"))
         self.cal_r_max_input.setText(params.get("rmax", "30"))
-        self.r_step_input.setText(params.get("rstep", "0.01"))
+        # NOTE: previously this wrote to self.r_step_input (the PDF tab's field)
+        # by mistake, so a loaded .xyz config never set the CAL tab's r_step.
+        self.cal_r_step_input.setText(params.get("rstep", "0.01"))
 
     def set_compton_parameters(self, params: dict):
         try:
@@ -1127,9 +1127,13 @@ class ControlPanel(QWidget):
             self.main_window.plot_window.enable_graphs(enable_fq=enable_fq, enable_gr=enable_gr)
 
     def on_fq_inputs_finished(self):
+        # Only re-plot. Do NOT force-enable the F(q)/G(r) panels here: changing a
+        # smoothing parameter (lambda/order) should not resurrect panels the
+        # user has hidden, and enabling them after send_update() would also undo
+        # the zoom that update_current_graph just preserved.
         self.send_update()
-        self.enable_graphs(enable_fq=True, enable_gr=True)
 
     def on_gr_inputs_finished(self):
+        # Only re-plot; do not force-enable the G(r) panel (respect the user's
+        # panel visibility). Zoom is preserved by update_current_graph.
         self.send_update()
-        self.enable_graphs(enable_gr=True)
