@@ -4,7 +4,7 @@ import re
 import numpy as np
 
 # [중요] Qt 모듈 임포트
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QFormLayout, QTabWidget, QLineEdit,
     QPushButton, QLabel, QHBoxLayout, QMessageBox,
@@ -38,6 +38,15 @@ class ControlPanel(QWidget):
         # can ask which source to use even after the file is deselected.
         self._compton_xyz_path = None
         self._compton_xyz_comp = None
+
+        # Debounce timer: while a slider is dragged, valueChanged fires many
+        # times; each just restarts this timer, so the (possibly heavy, multi-
+        # file) recompute runs only once after the user pauses. The slider's
+        # numeric field still updates live.
+        self._update_timer = QTimer(self)
+        self._update_timer.setSingleShot(True)
+        self._update_timer.timeout.connect(self._do_send_update)
+        self._update_delay_ms = 150
 
         fixed_font = QFont()
         fixed_font.setPointSize(9)
@@ -195,6 +204,30 @@ class ControlPanel(QWidget):
 
         main_v_layout.addWidget(form_widget)
         main_v_layout.addStretch(1)
+
+        # EZPDF logo in the bottom-right corner of the tab (same placement on all
+        # tabs): right edge lined up with the Reset button.
+        # [KR] 탭의 오른쪽 아래 모서리에 EZPDF 로고 표시 (모든 탭 같은 위치).
+        #      오른쪽 끝을 Reset 버튼과 맞춘다.
+        try:
+            from PySide6.QtGui import QPixmap, QGuiApplication
+            from model.elem_data import resource_path
+            _logo_file = resource_path(os.path.join("ui", "icons", "EZPDF_logo_wordmark.png"))
+            if os.path.exists(_logo_file):
+                _logo_width = 120  # on-screen width in logical pixels
+                _screen = QGuiApplication.primaryScreen()
+                _dpr = _screen.devicePixelRatio() if _screen else 1.0
+                _pix = QPixmap(_logo_file).scaledToWidth(
+                    int(_logo_width * _dpr), Qt.TransformationMode.SmoothTransformation)
+                _pix.setDevicePixelRatio(_dpr)
+                self.basic_logo_label = QLabel()
+                self.basic_logo_label.setPixmap(_pix)
+                _logo_row = QHBoxLayout()
+                _logo_row.addStretch()
+                _logo_row.addWidget(self.basic_logo_label)
+                main_v_layout.addLayout(_logo_row)
+        except Exception:
+            pass
 
         return basic_tab
 
@@ -509,11 +542,44 @@ class ControlPanel(QWidget):
         main_layout.addWidget(form_widget)
         main_layout.addStretch(1)  # 공간 채우기
 
+        # EZPDF logo in the bottom-right corner of the tab (same placement on all
+        # tabs). The PDF tab has the "Open in New Graphs" checkbox row at the very
+        # bottom, so the logo goes at the right end of that row.
+        # [KR] 탭의 오른쪽 아래 모서리에 EZPDF 로고 표시 (모든 탭 같은 위치).
+        #      PDF 탭은 맨 아래에 "Open in New Graphs" 체크박스 줄이 있으므로
+        #      로고를 그 줄의 오른쪽 끝에 넣는다.
+        try:
+            from PySide6.QtGui import QPixmap, QGuiApplication
+            from model.elem_data import resource_path
+            _logo_file = resource_path(os.path.join("ui", "icons", "EZPDF_logo_wordmark.png"))
+            if os.path.exists(_logo_file):
+                _logo_width = 120  # on-screen width in logical pixels
+                _screen = QGuiApplication.primaryScreen()
+                _dpr = _screen.devicePixelRatio() if _screen else 1.0
+                _pix = QPixmap(_logo_file).scaledToWidth(
+                    int(_logo_width * _dpr), Qt.TransformationMode.SmoothTransformation)
+                _pix.setDevicePixelRatio(_dpr)
+                self.pdf_logo_label = QLabel()
+                self.pdf_logo_label.setPixmap(_pix)
+                # Placed at the right end of the bottom checkbox row (see below).
+                # [KR] 아래쪽 체크박스 줄의 오른쪽 끝에 배치한다(아래 참고).
+        except Exception:
+            pass
+
         # ⬇⬇⬇ [체크박스 위치 수정: 왼쪽 정렬] ⬇⬇⬇
         cb_layout = QHBoxLayout()
         cb_layout.addWidget(self.new_window_checkbox) # 체크박스를 먼저 추가
         cb_layout.addStretch()                        # 뒤에 여백(Stretch) 추가
         # ⬆⬆⬆ [수정 완료] ⬆⬆⬆
+
+        # EZPDF logo at the right end of this bottom row -> bottom-right corner,
+        # the same spot as on the other tabs. The checkbox is kept at the bottom
+        # of the (now taller) row so it stays where it was.
+        # [KR] 이 맨 아래 줄 오른쪽 끝에 로고 → 다른 탭과 같은 오른쪽 아래 모서리.
+        #      줄이 로고 높이만큼 높아지므로 체크박스는 아래에 붙여 원래 위치를 유지.
+        if getattr(self, "pdf_logo_label", None) is not None:
+            cb_layout.addWidget(self.pdf_logo_label)
+            cb_layout.setAlignment(self.new_window_checkbox, Qt.AlignmentFlag.AlignBottom)
 
         # 메인 레이아웃 최하단에 추가
         main_layout.addLayout(cb_layout)
@@ -598,6 +664,40 @@ class ControlPanel(QWidget):
         reset_layout.addStretch()
         reset_layout.addWidget(reset_btn)
         cal_layout.addRow("", reset_layout)
+
+        # EZPDF logo in the bottom-right corner of the CAL tab (same placement
+        # on all tabs). This tab is a single form layout, so the logo sits at the
+        # bottom of a container row that takes the leftover height; its right
+        # edge lines up with the buttons.
+        # [KR] CAL 탭의 오른쪽 아래 모서리에 EZPDF 로고 표시 (모든 탭 같은
+        #      위치). 이 탭은 폼 레이아웃 하나로 되어 있어서, 남는 높이를
+        #      차지하는 상자의 바닥에 로고를 두고 오른쪽 끝을 버튼에 맞춘다.
+        try:
+            from PySide6.QtGui import QPixmap, QGuiApplication
+            from PySide6.QtWidgets import QSizePolicy
+            from model.elem_data import resource_path
+            _logo_file = resource_path(os.path.join("ui", "icons", "EZPDF_logo_wordmark.png"))
+            if os.path.exists(_logo_file):
+                _logo_width = 120  # on-screen width in logical pixels
+                _screen = QGuiApplication.primaryScreen()
+                _dpr = _screen.devicePixelRatio() if _screen else 1.0
+                _pix = QPixmap(_logo_file).scaledToWidth(
+                    int(_logo_width * _dpr), Qt.TransformationMode.SmoothTransformation)
+                _pix.setDevicePixelRatio(_dpr)
+                self.cal_logo_label = QLabel()
+                self.cal_logo_label.setPixmap(_pix)
+                _logo_box = QWidget()
+                _logo_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+                _logo_v = QVBoxLayout(_logo_box)
+                _logo_v.setContentsMargins(0, 0, 0, 0)
+                _logo_v.addStretch(1)
+                _logo_row = QHBoxLayout()
+                _logo_row.addStretch()
+                _logo_row.addWidget(self.cal_logo_label)
+                _logo_v.addLayout(_logo_row)
+                cal_layout.addRow(_logo_box)
+        except Exception:
+            pass
 
         return cal_tab
 
@@ -715,6 +815,40 @@ class ControlPanel(QWidget):
         buttons_layout.addWidget(calculate_btn)
         buttons_layout.addWidget(reset_btn)
         compton_layout.addRow("", buttons_layout)
+
+        # EZPDF logo in the bottom-right corner of the Compton tab (same placement
+        # on all tabs). This tab is a single form layout, so the logo sits at the
+        # bottom of a container row that takes the leftover height; its right
+        # edge lines up with the buttons.
+        # [KR] Compton 탭의 오른쪽 아래 모서리에 EZPDF 로고 표시 (모든 탭 같은
+        #      위치). 이 탭은 폼 레이아웃 하나로 되어 있어서, 남는 높이를
+        #      차지하는 상자의 바닥에 로고를 두고 오른쪽 끝을 버튼에 맞춘다.
+        try:
+            from PySide6.QtGui import QPixmap, QGuiApplication
+            from PySide6.QtWidgets import QSizePolicy
+            from model.elem_data import resource_path
+            _logo_file = resource_path(os.path.join("ui", "icons", "EZPDF_logo_wordmark.png"))
+            if os.path.exists(_logo_file):
+                _logo_width = 120  # on-screen width in logical pixels
+                _screen = QGuiApplication.primaryScreen()
+                _dpr = _screen.devicePixelRatio() if _screen else 1.0
+                _pix = QPixmap(_logo_file).scaledToWidth(
+                    int(_logo_width * _dpr), Qt.TransformationMode.SmoothTransformation)
+                _pix.setDevicePixelRatio(_dpr)
+                self.compton_logo_label = QLabel()
+                self.compton_logo_label.setPixmap(_pix)
+                _logo_box = QWidget()
+                _logo_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+                _logo_v = QVBoxLayout(_logo_box)
+                _logo_v.setContentsMargins(0, 0, 0, 0)
+                _logo_v.addStretch(1)
+                _logo_row = QHBoxLayout()
+                _logo_row.addStretch()
+                _logo_row.addWidget(self.compton_logo_label)
+                _logo_v.addLayout(_logo_row)
+                compton_layout.addRow(_logo_box)
+        except Exception:
+            pass
 
         return compton_tab
 
@@ -979,6 +1113,14 @@ class ControlPanel(QWidget):
         }
 
     def send_update(self):
+        # Debounced: coalesce rapid slider changes into a single recompute.
+        try:
+            self._update_timer.start(self._update_delay_ms)
+        except Exception:
+            # Timer not ready (very early call) — run immediately.
+            self._do_send_update()
+
+    def _do_send_update(self):
         windows = getattr(self.main_window, "plot_windows", [])
         active_windows = [w for w in windows if w.isVisible()]
         self.main_window.plot_windows = active_windows

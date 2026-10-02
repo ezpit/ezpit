@@ -4,7 +4,7 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/build-env" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.11 (EZPDF_GUI_version)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Python 3.11 (EZPDF_GUI_version) (2)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="PyDocumentationSettings">

@@ -27,6 +27,21 @@ PRIMARY_PANEL = {
     ".gr": 3, ".calgr": 3,
 }
 
+# Panels shown first when a SINGLE file is opened, by extension:
+# (I(q), S(q), F(q), G(r)). Only the panels that come from the file's own data
+# onward are shown; the user can tick the others later in the plot window.
+# [KR] 파일 하나를 열 때 확장자별로 처음 보여줄 패널 (I(q), S(q), F(q), G(r)).
+#      파일 데이터 이후 단계의 패널만 보여주고, 나머지는 사용자가 나중에 켠다.
+SINGLE_FILE_PANELS = {
+    ".chi": (True, True, True, True), ".iq": (True, True, True, True),
+    ".xy": (True, True, True, True), ".dat": (True, True, True, True),
+    ".txt": (True, True, True, True), ".caliq": (True, True, True, True),
+    ".xyz": (True, True, True, True),
+    ".sq": (False, True, True, True), ".calsq": (False, True, True, True),
+    ".fq": (False, False, True, True), ".calfq": (False, False, True, True),
+    ".gr": (False, False, False, True), ".calgr": (False, False, False, True),
+}
+
 
 def load_selected_files(selected_items, label_widget, plot_window_ref, control_panel, max_length_file_name):
     if not selected_items:
@@ -64,6 +79,12 @@ def load_selected_files(selected_items, label_widget, plot_window_ref, control_p
             if ext == '.compton':
                 plot_window_ref.enable_graphs(enable_iq=True, enable_sq=False,
                                               enable_fq=False, enable_gr=False)
+            # Other file types: show the panels listed in SINGLE_FILE_PANELS.
+            # [KR] 그 외 확장자: SINGLE_FILE_PANELS에 정한 패널만 먼저 보여준다.
+            elif ext in SINGLE_FILE_PANELS:
+                _iq, _sq, _fq, _gr = SINGLE_FILE_PANELS[ext]
+                plot_window_ref.enable_graphs(enable_iq=_iq, enable_sq=_sq,
+                                              enable_fq=_fq, enable_gr=_gr)
 
             label_widget.setText(f"Showing plot for {short_name}")
 
