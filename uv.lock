@@ -245,7 +245,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.5.1" },
     { name = "pandas", marker = "extra == 'gui'", specifier = ">=3.0.5" },
     { name = "pyqtgraph", marker = "extra == 'gui'", specifier = ">=0.14.0" },
-    { name = "pyside6", marker = "extra == 'gui'", specifier = ">=6.11.1" },
+    { name = "pyside6", marker = "extra == 'gui'", specifier = ">=6.9.0" },
     { name = "scipy", specifier = ">=1.18.0" },
 ]
 provides-extras = ["examples", "gui"]
