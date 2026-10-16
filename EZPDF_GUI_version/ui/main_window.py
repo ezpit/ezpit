@@ -340,10 +340,14 @@ class PDFApp(QMainWindow):
     def __init__(self):
         super().__init__()
         # --- 아이콘 설정 코드 (번들 대응 경로 방식) ---
-        icon_path = resource_path(os.path.join("ui", "icons",
-                                               "EZPDF_logo_2x_transparent.png"))
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
+        # Use EZPDF.ico first (multi-size, crisp in the 16-32 px title bar),
+        # then fall back to the PNG logo.
+        # [KR] 제목줄(16~32px)에서 선명한 EZPDF.ico를 먼저 쓰고, 없으면 PNG 사용.
+        for _icon_name in ("EZPDF.ico", "EZPDF_logo_2x_transparent.png"):
+            icon_path = resource_path(os.path.join("ui", "icons", _icon_name))
+            if os.path.exists(icon_path):
+                self.setWindowIcon(QIcon(icon_path))
+                break
         # ----------------------------------------
 
         self.setWindowTitle("EZPDF")
@@ -501,7 +505,7 @@ class PDFApp(QMainWindow):
     def show_about_dialog(self):
         # About Dialog Text - 프로그램 정보 텍스트
         about_text = """
-        <b>EZPDF (Easy(EZ) Pair Distribution Function (PDF) Version 1.0.3, September 25, 2026)</b>
+        <b>EZPDF (Easy(EZ) Pair Distribution Function (PDF) Version 1.0.2, August 4, 2026)</b>
         <p>: An easy-to-use software developed by the NSLS-II team for processing X-ray
         diffraction/scattering data and generating pair distribution function (PDF) spectra.</p>
 
@@ -588,6 +592,12 @@ class PDFApp(QMainWindow):
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(project_data, f, indent=4)
             self.label.setText(f"Project saved to {os.path.basename(file_path)}")
+            # Remember the folder the project was saved in, so the next Open
+            # Project / Open Folder / Open Files dialog starts there.
+            # [KR] 프로젝트를 저장한 폴더를 기억해서, 다음 프로젝트 열기·폴더 열기·
+            #      파일 열기 대화상자가 그 폴더에서 시작하도록 한다.
+            self._last_dir = os.path.dirname(file_path)
+            self._settings.setValue("last_dir", self._last_dir)
         except Exception as e:
             QMessageBox.critical(self, "Save Error", f"Failed to save project file:\n{e}")
 

@@ -798,7 +798,11 @@ class PlotWindow(QMainWindow):
     _counter = 0   # running index used in the window title
 
     def __init__(self, snapshot: dict, parent=None):
-        super().__init__(parent)
+        # No Qt parent: on Windows a parented top-level window always stays
+        # above its parent, which made the main window impossible to bring to
+        # the front.  The owner is kept as a plain reference instead.
+        super().__init__(None)
+        self._owner = parent
         PlotWindow._counter += 1
         self._idx = PlotWindow._counter
         self._is_result = bool(snapshot.get("is_result", False))
@@ -826,7 +830,7 @@ class PlotWindow(QMainWindow):
         """
         if set_title:
             title = s.get("title", "data")
-            self.setWindowTitle(f"WH_smooth Plot [{self._idx}] — {title}")
+            self.setWindowTitle(f"WH Range Smoother Plot — {title}")
         self._q          = s.get("q")
         self._y_raw      = s.get("y_raw")
         self._y          = s.get("y")
@@ -892,13 +896,66 @@ class PlotWindow(QMainWindow):
                 xRange=main_range[0], yRange=main_range[1], padding=0)
         now_smoothed = self._y_smoothed is not None
         if had_smoothed and now_smoothed and not log_changed:
-            # Difference plot already had data: keep the user's view.
+            # Difference plot already had data: keep the user's view, unless
+            # the new difference curve would be entirely off-screen in y
+            # (e.g. lambda / alpha changed a lot) — then refit y only.
             self.plot_diff.getViewBox().setRange(
                 xRange=diff_range[0], yRange=diff_range[1], padding=0)
+            if not self._diff_visible_in(diff_range):
+                self._fit_diff_y(x_range=diff_range[0])
         elif now_smoothed:
-            # First smoothed result (or log toggle): anchor diff at q = 0.
+            # First smoothed result (or log toggle): the old diff view was
+            # fitted to NOTHING (no curve yet), so fit x from q = 0 AND y to the
+            # new difference curve.  Previously only x was set, leaving a stale
+            # y-range in which the difference curve was invisible.
+            x_rng = None
             if self._q is not None and len(self._q) > 1:
-                self.plot_diff.setXRange(0, float(self._q[-1]), padding=0.02)
+                x_rng = (0.0, float(self._q[-1]))
+            self._fit_diff_y(x_range=x_rng)
+
+    def _diff_array(self):
+        if self._y is None or self._y_smoothed is None:
+            return None
+        try:
+            return (np.asarray(self._y, dtype=float)
+                    - np.asarray(self._y_smoothed, dtype=float))
+        except Exception:
+            return None
+
+    def _diff_visible_in(self, view_range):
+        """True if any finite difference point lies inside view_range."""
+        d = self._diff_array()
+        if d is None or self._q is None:
+            return True
+        (x0, x1), (y0, y1) = view_range
+        q = np.asarray(self._q, dtype=float)
+        m = np.isfinite(d) & (q >= x0) & (q <= x1)
+        if not m.any():
+            return False
+        dv = d[m]
+        return bool(((dv >= y0) & (dv <= y1)).any())
+
+    def _fit_diff_y(self, x_range=None):
+        """Fit the difference plot's y-range to the difference curve
+        (restricted to x_range if given)."""
+        d = self._diff_array()
+        if d is None or self._q is None:
+            return
+        q = np.asarray(self._q, dtype=float)
+        m = np.isfinite(d)
+        if x_range is not None:
+            m &= (q >= x_range[0]) & (q <= x_range[1])
+        if not m.any():
+            m = np.isfinite(d)
+        if not m.any():
+            return
+        lo, hi = float(np.min(d[m])), float(np.max(d[m]))
+        pad = 0.05 * (hi - lo) if hi > lo else (abs(hi) * 0.05 or 1.0)
+        vb = self.plot_diff.getViewBox()
+        if x_range is not None:
+            vb.setRange(xRange=x_range, yRange=(lo - pad, hi + pad), padding=0)
+        else:
+            vb.setYRange(lo - pad, hi + pad, padding=0)
 
     def set_editor(self, row, controller):
         """Enable/disable manual-point editing in this window.
@@ -938,8 +995,12 @@ class PlotWindow(QMainWindow):
         pg.setConfigOption('background', 'w')
         pg.setConfigOption('foreground', 'k')
 
+        # Axis labels follow the data type: G(r) is plotted vs r (Å); the
+        # others vs q (Å⁻¹).
+        _is_gr = (self._data_type == "G(r)")
+        _x_name, _x_units = (("r", "Å") if _is_gr else ("q", "Å⁻¹"))
         self.plot_main = pg.PlotWidget(title="Original vs Smoothed")
-        self.plot_main.setLabel('bottom', "q", units="Å⁻¹")
+        self.plot_main.setLabel('bottom', _x_name, units=_x_units)
         self.plot_main.setLabel('left', self._data_type)
         self.plot_main.showGrid(x=True, y=True, alpha=0.3)
         self.plot_main.getViewBox().setLimits(xMin=0)
@@ -947,15 +1008,23 @@ class PlotWindow(QMainWindow):
             self.plot_main.setLogMode(x=False, y=True)
 
         self.plot_diff = pg.PlotWidget(title="Difference  (Original − Smoothed)")
-        self.plot_diff.setLabel('bottom', "q", units="Å⁻¹")
+        self.plot_diff.setLabel('bottom', _x_name, units=_x_units)
         self.plot_diff.setLabel('left', "Δ")
         self.plot_diff.showGrid(x=True, y=True, alpha=0.3)
         self.plot_diff.getViewBox().setLimits(xMin=0)
-        self.plot_diff.setMaximumHeight(240)
-        self.plot_diff.setMinimumHeight(120)
+        self.plot_diff.setMinimumHeight(80)
 
-        lay.addWidget(self.plot_main, 4)
-        lay.addWidget(self.plot_diff, 1)
+        # Put the two plots in a vertical splitter so the user can drag the
+        # divider to resize the Difference plot's height.
+        self._plot_splitter = QSplitter(Qt.Orientation.Vertical)
+        self._plot_splitter.setChildrenCollapsible(False)
+        self._plot_splitter.setHandleWidth(6)
+        self._plot_splitter.addWidget(self.plot_main)
+        self._plot_splitter.addWidget(self.plot_diff)
+        self._plot_splitter.setStretchFactor(0, 4)   # main plot grows more
+        self._plot_splitter.setStretchFactor(1, 1)
+        self._plot_splitter.setSizes([600, 160])     # initial heights (px)
+        lay.addWidget(self._plot_splitter)
 
         # Crosshair + coordinate read-out on the main plot.
         self._coord = pg.TextItem("", anchor=(1, 1), color='#0055AA')
@@ -994,8 +1063,24 @@ class PlotWindow(QMainWindow):
             vb.setMouseMode(pg.ViewBox.RectMode)
             pw.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-        self.statusBar().showMessage(
-            "Drag: Box-Zoom   R: Reset view   Right-drag: Zoom")
+        self._zoom_help = ("Zoom:  Left-drag = box zoom  |  Right-drag or "
+                           "mouse-wheel = zoom in/out  |  press R = reset view")
+        self.statusBar().showMessage(self._zoom_help)
+        # Keep the zoom help permanently visible on the left of the status bar.
+        self._zoom_help_label = pg.Qt.QtWidgets.QLabel(self._zoom_help)
+        self._zoom_help_label.setStyleSheet("color:#555; padding:0 8px;")
+        self.statusBar().addPermanentWidget(self._zoom_help_label, 0)
+
+    def closeEvent(self, event):
+        """Tell the main window this plot is closing so it can hand the
+        'live' role to another open window instead of pointing at a dead one."""
+        p = getattr(self, "_owner", None)
+        if p is not None and hasattr(p, "_on_plot_window_closed"):
+            try:
+                p._on_plot_window_closed(self)
+            except Exception:
+                pass
+        super().closeEvent(event)
 
     def keyPressEvent(self, event):
         """R resets both plots to the DATA range.
@@ -1174,6 +1259,15 @@ class PlotWindow(QMainWindow):
 
     # ── Drawing ──
     def _draw(self, reset_view=True):
+        # Axis labels follow the current data type (updated per snapshot), so a
+        # reused window relabels when a different file type is shown. G(r) is
+        # plotted vs r (Å); the others vs q (Å⁻¹).
+        _is_gr = (self._data_type == "G(r)")
+        _x_name, _x_units = (("r", "Å") if _is_gr else ("q", "Å⁻¹"))
+        self.plot_main.setLabel('bottom', _x_name, units=_x_units)
+        self.plot_main.setLabel('left', self._data_type)
+        self.plot_diff.setLabel('bottom', _x_name, units=_x_units)
+
         leg = self.plot_main.addLegend()
         leg.setLabelTextSize('12pt')
         leg.setLabelTextColor('k')
@@ -1250,6 +1344,12 @@ class PlotWindow(QMainWindow):
             self.plot_main.setXRange(0, float(self._q[-1]), padding=0.02)
 
         # Difference plot.
+        if self._y_smoothed is None:
+            self.plot_diff.setTitle(
+                "Difference  —  no Smoothed curve (add a q-range or enable "
+                "Section 4 default WH)")
+        else:
+            self.plot_diff.setTitle("Difference  (Original − Smoothed)")
         if self._y_smoothed is not None:
             diff = self._y - self._y_smoothed
             self.plot_diff.setLabel('left', f"Δ {self._data_type}")
@@ -1388,11 +1488,40 @@ class WHRangeSmoother(QMainWindow):
             "ref_scale":     self.ref_scale_edit.text(),
             "ref_path":      self.ref_edit.text(),
             "sample_files":  _list_paths(self.file_list),
-            "sample_row":    self.file_list.currentRow(),
+            "sample_row":    self._session_sample_row(),
             "bkg_files":     _list_paths(self.bkg_list),
             "bkg_row":       self.bkg_list.currentRow(),
             "ranges":        [row.serialize() for row in self._get_rows()],
+            "ranges_by_file": self._ranges_by_file_for_save(),
         }
+
+    def _ranges_by_file_for_save(self):
+        """Per-sample Section 5 setups (current sample included) for saving."""
+        self._stash_current_ranges()
+        return {k: v for k, v in self._ranges_by_path.items()}
+
+    def _session_sample_row(self):
+        """Row to store as the session's active sample.  If no row is current
+        (e.g. after list edits) use the row of the sample actually loaded, so
+        the saved session does not come back with nothing selected."""
+        row = self.file_list.currentRow()
+        if row >= 0:
+            return row
+        cur = getattr(self, "_current_loaded_path", None)
+        if cur:
+            for i in range(self.file_list.count()):
+                it = self.file_list.item(i)
+                if self._same_path(it.data(Qt.ItemDataRole.UserRole) or it.text(), cur):
+                    return i
+        return -1
+
+    @staticmethod
+    def _session_has_ranges(sess):
+        if not isinstance(sess, dict):
+            return False
+        if sess.get("ranges"):
+            return True
+        return any(v for v in (sess.get("ranges_by_file") or {}).values())
 
     def _schedule_autosave(self):
         """Queue a debounced INTERNAL session save (no .whses file is written)."""
@@ -1499,6 +1628,21 @@ class WHRangeSmoother(QMainWindow):
         except Exception:
             self._ref_scale = 1.0
 
+        # ---- per-sample Section 5 cache ------------------------------------
+        if "ranges_by_file" in s:
+            loaded = {self._path_key(k): v
+                      for k, v in (s.get("ranges_by_file") or {}).items()}
+            if clear_first:
+                self._ranges_by_path = loaded
+            else:
+                self._ranges_by_path.update(loaded)
+        else:
+            self._stash_current_ranges()
+        # The rows below belong to the session's sample, not the previous one,
+        # so detach them before the sample list is reloaded.
+        self._current_loaded_path = None
+        self._current_loaded_name = None
+
         # ---- q-range rows / all per-range settings -------------------------
         for row in self._get_rows():
             self._range_layout.removeWidget(row)
@@ -1508,8 +1652,20 @@ class WHRangeSmoother(QMainWindow):
             for rs in saved_ranges:
                 self._add_range_row()
                 self._get_rows()[-1].apply_state(rs)
-        else:
-            self._add_range_row()
+        # No saved ranges → leave Section 5 empty (no auto row).
+
+        # The session's own "ranges" are authoritative for its active sample:
+        # register them in the per-sample cache so a stale cached entry (e.g.
+        # from autosave) cannot replace them when that sample is loaded below.
+        _sf = s.get("sample_files") or []
+        _sr = s.get("sample_row", -1)
+        _active = None
+        if isinstance(_sr, int) and 0 <= _sr < len(_sf):
+            _active = _sf[_sr]
+        elif len(_sf) == 1:
+            _active = _sf[0]
+        if _active:
+            self._ranges_by_path[self._path_key(_active)] = list(saved_ranges)
 
         # ---- Background path metadata ---------------------------------------
         # For an embedded result, keep the saved background entry even if the
@@ -1645,9 +1801,29 @@ class WHRangeSmoother(QMainWindow):
             "WH Session (*.whses);;JSON (*.json);;All Files (*)")
         if not path:
             return
+        new_sess = self._collect_session()
+        # Guard: don't silently replace a session that HAS q-range settings
+        # with one that has none (that is how earlier work got lost).
+        if os.path.exists(path) and not self._session_has_ranges(new_sess):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    old_sess = json.load(f)
+            except Exception:
+                old_sess = None
+            if self._session_has_ranges(old_sess):
+                ans = QMessageBox.question(
+                    self, "Overwrite session?",
+                    "The existing session file contains q-range (Section 5) "
+                    "settings, but the current setup has none.\n\n"
+                    "Overwrite it anyway?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No)
+                if ans != QMessageBox.StandardButton.Yes:
+                    self.statusBar().showMessage("Save cancelled — existing session kept.")
+                    return
         try:
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(self._collect_session(), f, indent=2)
+                json.dump(new_sess, f, indent=2)
         except Exception as e:
             QMessageBox.critical(self, "Save Error", str(e))
             return
@@ -1683,6 +1859,12 @@ class WHRangeSmoother(QMainWindow):
     def closeEvent(self, event):
         """Auto-save the session when the window closes."""
         self._save_session()
+        for w in list(getattr(self, "_plot_windows", [])):
+            try:
+                w._owner = None      # avoid callbacks into a closing window
+                w.close()
+            except Exception:
+                pass
         super().closeEvent(event)
 
     # ── Window placement ──────────────────────────────────────
@@ -1907,23 +2089,20 @@ class WHRangeSmoother(QMainWindow):
         col1_lay.addWidget(file_grp, 1)   # group fills the whole column
 
         # 2. Data type
-        type_grp = QGroupBox("3.  Data Type")
-        type_lay = QVBoxLayout(type_grp)
-        tg = QHBoxLayout()
+        # The data type is taken automatically from each file's extension
+        # (.chi/.iq → I(q), .sq → S(q), .fq → F(q), .gr → G(r)), so there is no
+        # manual Data Type selector. An empty button group is kept so the rest
+        # of the code that iterates self._type_bg.buttons() stays valid (it just
+        # iterates nothing now).
         self._type_bg = QButtonGroup(self)
-        for label in ("I(q)", "S(q)", "F(q)", "G(r)"):
-            rb = QRadioButton(label)
-            rb.setChecked(label == "I(q)")
-            rb.toggled.connect(lambda checked, l=label: self._on_type(l, checked))
-            self._type_bg.addButton(rb)
-            tg.addWidget(rb)
-        type_lay.addLayout(tg)
 
-        # Log Y-axis toggle lives here (not in the Background box) so it's
-        # available for S(q) / F(q) too, where there is no background section.
+        type_grp = QGroupBox("3.  Display")
+        type_lay = QVBoxLayout(type_grp)
+        # Log Y-axis toggle — manual, default OFF. Axis labels follow the file
+        # extension automatically; this only controls linear vs log scaling.
         log_row = QHBoxLayout()
         self.log_chk = QCheckBox("Log Y-axis (main plot)")
-        self.log_chk.setChecked(True)
+        self.log_chk.setChecked(False)
         self.log_chk.stateChanged.connect(lambda _: self._apply_log_scale())
         log_row.addWidget(self.log_chk)
         log_row.addStretch()
@@ -1991,6 +2170,14 @@ class WHRangeSmoother(QMainWindow):
 
         # 3. Default WH params (used when adding new rows)
         wh_grp = QGroupBox("4.  Default WH Parameters (for new ranges)")
+        # Checkable: when ON, these defaults also smooth the WHOLE q range live
+        # (when no explicit range is set). When OFF, no automatic full-range
+        # smoothing is applied — the plot just shows the data until the user
+        # adds a range. The parameters still seed newly added ranges either way.
+        wh_grp.setCheckable(True)
+        wh_grp.setChecked(True)
+        self.wh_default_grp = wh_grp
+        wh_grp.toggled.connect(lambda _on: self._on_wh_default_toggled())
         wg = QGridLayout(wh_grp)
         wg.setSpacing(6)
         wg.addWidget(QLabel("lambda:"), 0, 0)
@@ -2096,6 +2283,10 @@ class WHRangeSmoother(QMainWindow):
         self.ref_scale_edit.setFixedWidth(80)
         self.ref_scale_edit.setToolTip("Multiplicative scale applied to reference y values")
         self.ref_scale_edit.textChanged.connect(self._on_ref_scale_changed)
+        # Also fire on Enter / focus-out so the reference curve updates reliably
+        # even if an intermediate textChanged value failed to parse.
+        self.ref_scale_edit.editingFinished.connect(self._on_ref_scale_changed)
+        self.ref_scale_edit.returnPressed.connect(self._on_ref_scale_changed)
         rgrid.addWidget(self.ref_scale_edit, 2, 1)
 
         llay.addWidget(ref_grp)
@@ -2133,8 +2324,12 @@ class WHRangeSmoother(QMainWindow):
         self._current_loaded_path = None   # full path of the loaded sample
         self._suppress_autosave = False    # set during explicit Save Smoothed
         self._confirmed_sample_row = -1    # active sample (hover or click)
+        # Per-sample Section 5 (q-range) settings, keyed by normalized path, so
+        # switching to another sample and back restores the earlier work.
+        self._ranges_by_path = {}
         self._confirmed_bkg_row = -1       # click-confirmed background
         self._active_plot_window = None   # the window that live-updates
+        self._suppress_new_plot_window = False  # set while toggling Section 4
         self._preserve_hover_view = False # hover previews keep current zoom/range
         self._confirmed_plot_snapshot = None  # exact non-hover plot state
         self._confirmed_plot_path = None      # file that snapshot belongs to
@@ -2145,7 +2340,7 @@ class WHRangeSmoother(QMainWindow):
         self._bkg_hover_preview_active = False
 
         self.statusBar().showMessage("Ready — load a data file.")
-        self._add_range_row()
+        # Section 5 starts empty — the user adds a range with "+ Add Range".
 
     # ── Plot windows ──────────────────────────────────────────
 
@@ -2173,8 +2368,15 @@ class WHRangeSmoother(QMainWindow):
             self.log_chk.blockSignals(True)
             self.log_chk.setChecked(is_iq)
             self.log_chk.blockSignals(False)
-            self._apply_log_scale()
-            self._update_main_plot()
+            # Changing the data type should only update a plot window that is
+            # already open — never spawn one. The graph appears when a file is
+            # selected, not when the type radio changes.
+            self._suppress_new_plot_window = True
+            try:
+                self._apply_log_scale()
+                self._update_main_plot()
+            finally:
+                self._suppress_new_plot_window = False
 
     # ── Background file list ──────────────────────────────────
 
@@ -2364,7 +2566,6 @@ class WHRangeSmoother(QMainWindow):
             self._bkg_hover_preview_active = True
             win.update_snapshot(self._copy_plot_snapshot(snap), reset_view=False)
             win.show()
-            win.raise_()
 
     def _revert_bkg_preview(self):
         """Restore live selected data only if a different Bkg was previewed."""
@@ -2390,7 +2591,6 @@ class WHRangeSmoother(QMainWindow):
             self._remember_confirmed_plot(snap, path=current)
             win.update_snapshot(self._copy_plot_snapshot(snap), reset_view=False)
             win.show()
-            win.raise_()
 
     def _confirm_bkg_click(self, row):
         """A real click on a background row records it as confirmed.
@@ -2902,14 +3102,20 @@ class WHRangeSmoother(QMainWindow):
         if can_smooth:
             work_ranges = ranges
             if not work_ranges:
-                try:
-                    work_ranges = [{
-                        "q0": float(q[0]), "q1": float(q[-1]),
-                        "mode": "wh",
-                        "lambda": float(self.lambda_edit.text().replace(",", ".")),
-                        "order": self.order_spin.value(), "blend": 0,
-                    }]
-                except Exception:
+                # Full-range default smoothing only when Section 4 is enabled.
+                sec4_on = (getattr(self, "wh_default_grp", None) is None
+                           or self.wh_default_grp.isChecked())
+                if sec4_on:
+                    try:
+                        work_ranges = [{
+                            "q0": float(q[0]), "q1": float(q[-1]),
+                            "mode": "wh",
+                            "lambda": float(self.lambda_edit.text().replace(",", ".")),
+                            "order": self.order_spin.value(), "blend": 0,
+                        }]
+                    except Exception:
+                        work_ranges = []
+                else:
                     work_ranges = []
             if work_ranges:
                 try:
@@ -2995,8 +3201,9 @@ class WHRangeSmoother(QMainWindow):
             for rs in saved_ranges:
                 rr = self._add_range_row()
                 rr.apply_state(rs)
-        else:
-            self._add_range_row()
+        # When there are no saved ranges, leave Section 5 EMPTY (no auto row).
+        # A range is created only when the user clicks "+ Add Range", so
+        # selecting a new file never makes a WH Smooth row appear on its own.
 
         # Force the controls to visually update immediately while the pointer is
         # still moving between rows.  Without this, Qt can defer geometry/paint
@@ -3146,13 +3353,12 @@ class WHRangeSmoother(QMainWindow):
             self._restoring_hover_workspace = False
 
     def _preview_sample(self, row):
-        """Hover a sample: activate it, update Section 5, and update the plot.
+        """Hover a sample: show its full path in the status bar only.
 
-        A saved ``*_wh_smoothed.chi`` restores its embedded q-range/settings
-        workspace.  An ordinary data file has no embedded smoothing workspace, so
-        when the pointer moves to a *different* ordinary file Section 5 is reset
-        to one fresh range row instead of leaving the previous file's q ranges on
-        screen.  Thus the controls always describe the file currently plotted.
+        Hovering no longer loads data or opens/updates the plot — the graph
+        appears only when the user CLICKS a file (currentRowChanged →
+        _on_sample_selected). This keeps browsing the list from disturbing the
+        current plot or spawning windows.
         """
         if row < 0 or row >= self.file_list.count():
             return
@@ -3161,76 +3367,7 @@ class WHRangeSmoother(QMainWindow):
         if not (path and os.path.exists(path)):
             return
         self._update_ext_label(self.file_ext_label, path)
-
-        previous_path = getattr(self, "_current_loaded_path", None)
-        switching_file = not self._same_path(path, previous_path)
-
-        # Saved WH result: its embedded ranges/settings are authoritative.
-        sess = self._read_saved_result(path)
-        if isinstance(sess, dict) and (sess.get("data") or {}).get("q") is not None:
-            snap = self._hover_snapshot(path)
-            if snap is None:
-                self.statusBar().showMessage(path)
-                return
-            snap = self._apply_saved_result_workspace_from_hover(row, path, sess, snap)
-        else:
-            # Ordinary file: there is no saved Section-5 workspace.  When moving
-            # from another sample, clear stale q ranges/manual points FIRST, then
-            # build the preview so its range overlay matches the visible controls.
-            if switching_file:
-                self._restoring_hover_workspace = True
-                try:
-                    self._replace_q_range_ui([])
-                finally:
-                    self._restoring_hover_workspace = False
-
-            snap = self._hover_snapshot(path)
-            if snap is None:
-                self.statusBar().showMessage(path)
-                return
-
-            self.file_list.blockSignals(True)
-            try:
-                self.file_list.setCurrentRow(row)
-                self._confirmed_sample_row = row
-            finally:
-                self.file_list.blockSignals(False)
-
-            self.q = np.asarray(snap["q"], dtype=float).copy()
-            self._y_raw = (None if snap.get("y_raw") is None
-                           else np.asarray(snap["y_raw"], dtype=float).copy())
-            self.y = np.asarray(snap["y"], dtype=float).copy()
-            self._y_bkg_scaled = (None if snap.get("y_bkg_scaled") is None
-                                  else np.asarray(snap["y_bkg_scaled"], dtype=float).copy())
-            self.y_smoothed = (None if snap.get("y_smoothed") is None
-                               else np.asarray(snap["y_smoothed"], dtype=float).copy())
-            self._current_loaded_name = os.path.basename(path)
-            self._current_loaded_path = path
-            self._sample_hover_preview_active = False
-            snap = self._build_snapshot()
-            self._remember_confirmed_plot(snap, path=path)
-
-        self._plot_windows = [w for w in self._plot_windows if w.isVisible()]
-        win = self._active_plot_window
-        if win is None or not win.isVisible():
-            win = PlotWindow(self._copy_plot_snapshot(snap), parent=self)
-            self._position_plot_window(win)
-            self._plot_windows.append(win)
-            self._active_plot_window = win
-            win.show()
-            win.raise_()
-        else:
-            # Hovering another file must not disturb the user's zoom/pan.
-            win.update_snapshot(self._copy_plot_snapshot(snap), reset_view=False)
-            win.show()
-            win.raise_()
-
-        self._sample_hover_preview_active = False
-        if isinstance(sess, dict) and (sess.get("data") or {}).get("q") is not None:
-            msg = f"Active: {os.path.basename(path)} — saved plot and q-range settings restored."
-        else:
-            msg = f"Active: {os.path.basename(path)} — ordinary data; q-range panel reset for this file."
-        self.statusBar().showMessage(msg)
+        self.statusBar().showMessage(path)   # full path only; no plot on hover
 
     def _revert_sample_preview(self):
         """Compatibility fallback for legacy temporary previews.
@@ -3272,7 +3409,6 @@ class WHRangeSmoother(QMainWindow):
             self._remember_confirmed_plot(snap, path=current or selected_path)
             win.update_snapshot(self._copy_plot_snapshot(snap), reset_view=False)
             win.show()
-            win.raise_()
 
     def _confirm_sample_click(self, row):
         """A real click on a row: record it as the confirmed sample.
@@ -3281,16 +3417,71 @@ class WHRangeSmoother(QMainWindow):
         (Qt updates the current row on click), so we only record confirmation
         here to avoid loading twice.
         """
-        if 0 <= row < self.file_list.count():
-            self._confirmed_sample_row = row
+        if not (0 <= row < self.file_list.count()):
+            return
+        self._confirmed_sample_row = row
+        # If the row was already current, currentRowChanged did not fire, so
+        # nothing was loaded/plotted.  Make sure the clicked sample has a live
+        # window: reuse a visible one, or open a new one if none is open.
+        self._show_live_window_for_current()
 
     def _on_sample_double_clicked(self, item):
-        """Double click: open the sample in a NEW plot window for comparison."""
+        """Double click behaves like a single click: the sample is shown in the
+        ONE live plot window (no duplicate windows)."""
         if item is None:
             return
-        path = item.data(Qt.ItemDataRole.UserRole) or item.text()
-        if path and os.path.exists(path):
-            self._load_sample(path, new_window=True)
+        self._show_live_window_for_current()
+
+    def _show_live_window_for_current(self):
+        """Ensure the currently loaded sample is shown in a visible live window."""
+        if self.q is None or self.y is None:
+            path = self._current_sample_path()
+            if path and os.path.exists(path):
+                self._load_sample(path, new_window=False)
+            return
+        win = self._ensure_active_window()
+        if win is not None:
+            if win.isMinimized():
+                win.showNormal()
+            else:
+                win.show()
+        else:
+            self._refresh_active_window(reset_view=True)
+
+    @staticmethod
+    def _path_key(path):
+        try:
+            return os.path.normcase(os.path.abspath(path))
+        except Exception:
+            return path
+
+    def _stash_current_ranges(self):
+        """Remember the Section 5 rows of the currently loaded sample."""
+        cur = getattr(self, "_current_loaded_path", None)
+        if not cur:
+            return
+        try:
+            self._ranges_by_path[self._path_key(cur)] = [
+                r.serialize() for r in self._get_rows()]
+        except Exception:
+            pass
+
+    def _restore_ranges_for(self, path):
+        """Rebuild Section 5 from the cache for `path`. Returns True if done."""
+        saved = self._ranges_by_path.get(self._path_key(path)) if path else None
+        if saved is None:
+            return False
+        self._reset_ranges()
+        # Block live re-smoothing while rows are being rebuilt one by one.
+        prev = getattr(self, "_restoring_hover_workspace", False)
+        self._restoring_hover_workspace = True
+        try:
+            for rs in saved:
+                self._add_range_row()
+                self._get_rows()[-1].apply_state(rs)
+        finally:
+            self._restoring_hover_workspace = prev
+        return True
 
     def _reset_ranges(self):
         """Remove all q-range rows and add a single fresh one.
@@ -3311,8 +3502,8 @@ class WHRangeSmoother(QMainWindow):
             self._range_layout.removeWidget(row)
             row.setParent(None)
             row.deleteLater()
-        # Start the new file with one empty range row.
-        self._add_range_row()
+        # Leave Section 5 empty — a range appears only when the user clicks
+        # "+ Add Range", so loading a new file never auto-creates a WH row.
 
     def _read_embedded_session(self, path):
         """Return the embedded metadata dict from a WH-smoothed file, or None."""
@@ -3483,7 +3674,6 @@ class WHRangeSmoother(QMainWindow):
             if win is not None and win.isVisible():
                 win.update_snapshot(self._copy_plot_snapshot(snap), reset_view=False)
                 win.show()
-                win.raise_()
         return snap
 
     def _finalize_saved_result_after_load(self, path):
@@ -3516,6 +3706,10 @@ class WHRangeSmoother(QMainWindow):
                 f"{os.path.basename(path)} is a session file, not sample data "
                 "— use File ▸ Load Session to open it.")
             return
+        # Switching samples: remember the outgoing sample's Section 5 setup.
+        prev_path = getattr(self, "_current_loaded_path", None)
+        if prev_path and self._path_key(prev_path) != self._path_key(path):
+            self._stash_current_ranges()
         # Saved WH result?  Parse it BEFORE the generic loader so a multi-column
         # self-contained file is never mistaken for ordinary two-column data.
         if not silent and not getattr(self, "_restoring_session", False):
@@ -3630,7 +3824,6 @@ class WHRangeSmoother(QMainWindow):
                     win.update_snapshot(self._copy_plot_snapshot(loaded_snap),
                                         reset_view=True)
                     win.show()
-                    win.raise_()
 
                 # Some Qt widget signals created while restoring the embedded
                 # settings can be delivered after this function returns.  A late
@@ -3673,6 +3866,9 @@ class WHRangeSmoother(QMainWindow):
         # the mouse hovers over another row).
         self._current_loaded_name = new_name
         self._current_loaded_path = path
+        # Bring back this sample's earlier Section 5 setup, if any.
+        if not prev_path or self._path_key(prev_path) != self._path_key(path):
+            self._restore_ranges_for(path)
 
         # Auto-detect the data type, first from the extension and then, for
         # generic extensions such as .dat/.xy/.txt, from the file name itself
@@ -3698,14 +3894,11 @@ class WHRangeSmoother(QMainWindow):
         elif 'gr' in stem or 'g(r)' in stem:
             detected = 'G(r)'
 
-        if detected is not None:
-            for btn in self._type_bg.buttons():
-                btn.setChecked(btn.text() == detected)
-        else:
-            # Unknown type: keep the current selection and let the user know.
-            self.statusBar().showMessage(
-                f"Loaded {os.path.basename(path)} — data type not recognised; "
-                f"please select I(q) / S(q) / F(q) / G(r) manually.")
+        # The axis labels follow the data type, which comes straight from the
+        # file extension. Unknown extensions fall back to I(q).
+        self._data_type = detected if detected is not None else "I(q)"
+        for btn in self._type_bg.buttons():   # no-op now (no radios), kept safe
+            btn.setChecked(btn.text() == self._data_type)
 
         # If a background is selected, re-subtract it against the newly loaded
         # sample (works for any data type, not just I(q)).
@@ -3833,7 +4026,19 @@ class WHRangeSmoother(QMainWindow):
         smoothed using the Section 4 "Default WH Parameters" (λ, order), so
         editing those fields updates the plot too. There is no separate "Apply"
         step — everything is live.
+
+        This live update NEVER opens a new plot window — it only refreshes one
+        that is already open. The graph window appears only when the user clicks
+        a file. (Range edits, deletions, and parameter changes must not spawn a
+        window.)
         """
+        self._suppress_new_plot_window = True
+        try:
+            self._auto_reapply_impl()
+        finally:
+            self._suppress_new_plot_window = False
+
+    def _auto_reapply_impl(self):
         # Programmatic restoration of a saved hover workspace changes many row
         # widgets in sequence.  Do not recompute smoothing from half-restored
         # controls; the exact saved Smoothed array is restored after the UI.
@@ -3848,8 +4053,17 @@ class WHRangeSmoother(QMainWindow):
         ranges = self._get_ranges()
         full_range = False
         if not ranges:
-            # No explicit range → smooth the ENTIRE q range with the Section 4
-            # default WH parameters. Editing those fields re-smooths live.
+            # No explicit range. Only smooth the ENTIRE q range when the Section
+            # 4 "Default WH Parameters" group is enabled (checked). When it is
+            # unchecked, show the data with no automatic full-range smoothing.
+            if (getattr(self, "wh_default_grp", None) is not None
+                    and not self.wh_default_grp.isChecked()):
+                if self.y_smoothed is not None:
+                    self.y_smoothed = None
+                self._refresh_active_window()
+                return
+            # Smooth the whole range with the Section 4 default WH parameters.
+            # Editing those fields re-smooths live.
             try:
                 def_lam = float(self.lambda_edit.text().replace(",", "."))
             except ValueError:
@@ -4153,7 +4367,13 @@ class WHRangeSmoother(QMainWindow):
         row.setParent(None)
         # Recompute smoothing without the deleted range and refresh the plot so
         # its coloured region, smoothed curve, and manual dots disappear.
-        self._auto_reapply()
+        # Never open a new plot window just because a range was removed — only
+        # update one that is already open.
+        self._suppress_new_plot_window = True
+        try:
+            self._auto_reapply()
+        finally:
+            self._suppress_new_plot_window = False
 
     def _get_ranges(self, for_display=False) -> list:
         out = []
@@ -4274,6 +4494,29 @@ class WHRangeSmoother(QMainWindow):
         except Exception:
             pass
 
+    def _ensure_active_window(self):
+        """Return a visible live window, promoting the most recently opened
+        visible window if the previous live one was closed.  None if no plot
+        window is open."""
+        self._plot_windows = [w for w in self._plot_windows if w.isVisible()]
+        win = self._active_plot_window
+        if win is not None and win.isVisible():
+            return win
+        self._active_plot_window = self._plot_windows[-1] if self._plot_windows else None
+        return self._active_plot_window
+
+    def _on_plot_window_closed(self, win):
+        """Called from PlotWindow.closeEvent."""
+        self._plot_windows = [w for w in self._plot_windows
+                              if w is not win and w.isVisible()]
+        if self._active_plot_window is win:
+            self._active_plot_window = (self._plot_windows[-1]
+                                        if self._plot_windows else None)
+            if self._active_plot_window is not None:
+                # Bring the promoted window up to date with current settings
+                # (e.g. reference scale changed while the other window was live).
+                QTimer.singleShot(0, self._refresh_active_window_if_open)
+
     def _refresh_active_window_if_open(self):
         """Refresh the active window ONLY if one is already open.
 
@@ -4283,14 +4526,29 @@ class WHRangeSmoother(QMainWindow):
         """
         if getattr(self, "_startup_restoring", False):
             return
-        win = self._active_plot_window
+        if self.q is None or self.y is None:
+            return
+        win = self._ensure_active_window()
         if win is not None and win.isVisible():
             snap = self._build_snapshot()
             if not getattr(self, "_preserve_hover_view", False):
                 self._remember_confirmed_plot(snap, path=getattr(self, "_current_loaded_path", None))
-            win.update_snapshot(self._copy_plot_snapshot(snap))
+            # Auxiliary refresh (e.g. reference scale) must not disturb the
+            # user's current zoom/pan, so never reset the view here.
+            win.update_snapshot(self._copy_plot_snapshot(snap), reset_view=False)
             win.show()
-            win.raise_()
+
+    def _on_wh_default_toggled(self):
+        """Section 4 checkbox toggled.
+
+        Recompute smoothing, but NEVER open a plot window just because the
+        checkbox changed — only update a window that is already open.
+        """
+        self._suppress_new_plot_window = True
+        try:
+            self._auto_reapply()
+        finally:
+            self._suppress_new_plot_window = False
 
     def _refresh_active_window(self, reset_view=False):
         """Update the active plot window in place with the current snapshot.
@@ -4307,9 +4565,12 @@ class WHRangeSmoother(QMainWindow):
         # create or raise a PlotWindow.  Hover/click after startup will do that.
         if getattr(self, "_startup_restoring", False):
             return
-        self._plot_windows = [w for w in self._plot_windows if w.isVisible()]
-        win = self._active_plot_window
+        win = self._ensure_active_window()
         if win is None or not win.isVisible():
+            # Some callers (e.g. toggling Section 4) must not spawn a window —
+            # they only update one that's already open.
+            if getattr(self, "_suppress_new_plot_window", False):
+                return
             self._new_plot_window()
             return
         snap = self._build_snapshot()
@@ -4317,7 +4578,6 @@ class WHRangeSmoother(QMainWindow):
             self._remember_confirmed_plot(snap, path=getattr(self, "_current_loaded_path", None))
         win.update_snapshot(self._copy_plot_snapshot(snap), reset_view=reset_view)
         win.show()
-        win.raise_()
 
     # Backwards-compatible shim: a few callers still use the old name.
     def _open_plot_window(self, is_result=False):
