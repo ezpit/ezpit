@@ -391,7 +391,7 @@ The picture shows “Dark Mode” of EZPDF and EZPDF Plot.
 “Save data” saves processed data for experimental data or calculated data from input xyz model data. 
 “Save figure” (not shown) saves EZPDDF Plot as PNG, JPEG, SVG, PDF.
 
-![EZPDF_plot_save_plot option.png](EZPDF_plot_save_plot option.png)
+![EZPDF plot save option](EZPDF_plot_save_plot%20option.png)
 
 EZPDF plot window: multiple plot: 
 X Offset and Y Offset are available.
@@ -414,9 +414,9 @@ Note: 32-bit environments, macOS, and Linux are currently untested.
 Dependencies
 Core Framework: PySide6 is the primary dependency for the GUI.
 Compatibility Check: Before installation, please ensure your Python environment aligns with PySide6 version requirements to prevent library conflicts.
-![Reqired software1.png](Reqired software1.png)
-![Reqired software2.png](Reqired software2.png)
-![Reqired software3.png](Reqired software3.png)
+![Required software 1](Reqired%20software1.png)
+![Required software 2](Reqired%20software2.png)
+![Required software 3](Reqired%20software3.png)
 
 
 Smooth function: WH_smooth_GUI
