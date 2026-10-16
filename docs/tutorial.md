@@ -414,9 +414,9 @@ Note: 32-bit environments, macOS, and Linux are currently untested.
 Dependencies
 Core Framework: PySide6 is the primary dependency for the GUI.
 Compatibility Check: Before installation, please ensure your Python environment aligns with PySide6 version requirements to prevent library conflicts.
-![Reqired software1.png](Reqired_software1.png)
-![Reqired software2.png](Reqired_software2.png)
-![Reqired software3.png](Reqired_software3.png)
+![Reqired software1.png](Reqired software1.png)
+![Reqired software2.png](Reqired software2.png)
+![Reqired software3.png](Reqired software3.png)
 
 
 Smooth function: WH_smooth_GUI
